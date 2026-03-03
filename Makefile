@@ -18,7 +18,15 @@ API_KEY_ID     := $(shell jq -r .apple_api_key_id $(CURDIR)/secrets/asc-api-key.
 API_ISSUER     := $(shell jq -r .apple_api_issuer_id $(CURDIR)/secrets/asc-api-key.json 2>/dev/null)
 API_KEY_PATH   := $(API_KEYS_DIR)/AuthKey_$(API_KEY_ID).p8
 
-.PHONY: help bump-build archive upload brew-release brew-clean list-downloads clean-downloads list-container list-prefs clean-prefs reset-permissions reset-login-item reset-onboarding
+# Notarization (read from secrets/notarization.json)
+NOTARIZATION_JSON := $(CURDIR)/secrets/notarization.json
+APPLE_ID          := $(shell jq -r .apple_id $(NOTARIZATION_JSON) 2>/dev/null)
+TEAM_ID           := $(shell jq -r .team_id $(NOTARIZATION_JSON) 2>/dev/null)
+SIGNING_IDENTITY  := $(shell jq -r .signing_identity $(NOTARIZATION_JSON) 2>/dev/null)
+APP_PATH          := $(EXPORT_DIR)/Wispr.app
+ZIP_PATH          := $(EXPORT_DIR)/wispr-notarized.zip
+
+.PHONY: help bump-build archive upload notarize brew-release brew-clean list-downloads clean-downloads list-container list-prefs clean-prefs reset-permissions reset-login-item reset-onboarding
 
 _setup-api-key:
 	@test -f "$(SECRETS_JSON)" || { echo "Error: $(SECRETS_JSON) not found"; exit 1; }
@@ -48,6 +56,26 @@ upload: archive _setup-api-key ## Archive and upload to App Store Connect
 		-authenticationKeyIssuerID $(API_ISSUER) | xcbeautify
 	@$(MAKE) _cleanup-api-key
 
+notarize: archive _setup-api-key ## Archive, sign, notarize, and staple the app
+	@test -f "$(NOTARIZATION_JSON)" || { echo "Error: $(NOTARIZATION_JSON) not found"; exit 1; }
+	@echo "🔐 Signing app..."
+	@codesign --deep --force --verify --verbose \
+		--sign "$(SIGNING_IDENTITY)" \
+		--options runtime "$(APP_PATH)"
+	@echo "🗜️  Creating zip..."
+	@ditto -c -k --keepParent "$(APP_PATH)" "$(ZIP_PATH)"
+	@echo "📤 Submitting for notarization..."
+	@xcrun notarytool submit "$(ZIP_PATH)" \
+		--key "$(API_KEY_PATH)" \
+		--key-id "$(API_KEY_ID)" \
+		--issuer "$(API_ISSUER)" \
+		--wait
+	@echo "📎 Stapling ticket..."
+	@xcrun stapler staple "$(APP_PATH)"
+	@echo "✅ Notarization complete"
+	@spctl -a -vvv -t install "$(APP_PATH)"
+	@$(MAKE) _cleanup-api-key
+
 brew-clean: ## Clean up existing release tags and GitHub release (usage: make brew-clean VERSION=1.0.0)
 	@test -n "$(VERSION)" || { echo "Usage: make brew-clean VERSION=1.0.0"; exit 1; }
 	$(eval TAG := v$(VERSION))
@@ -62,22 +90,12 @@ brew-release: ## Create Homebrew cask release (usage: make brew-release VERSION=
 	@test -d "../homebrew-macos" || { echo "Error: ../homebrew-macos not found"; exit 1; }
 	@command -v gh >/dev/null || { echo "Error: gh CLI not installed"; exit 1; }
 	$(eval TAG := v$(VERSION))
-	$(eval APP_NAME := Wispr.app)
 	$(eval ZIP_NAME := wispr-$(VERSION).zip)
-	$(eval BUILD_NUM := $(shell git rev-list --count HEAD))
-	@echo "📝 Setting version to $(VERSION) (build $(BUILD_NUM))..."
+	@echo "📝 Setting version to $(VERSION)..."
 	@xcrun agvtool new-marketing-version $(VERSION) > /dev/null
-	@xcrun agvtool new-version -all $(BUILD_NUM) > /dev/null
-	@echo "🏗️  Building Release archive..."
-	@xcodebuild -project $(XCODEPROJ) -scheme $(SCHEME) -configuration Release \
-		-archivePath $(ARCHIVE_PATH) \
-		DEVELOPMENT_TEAM=56U756R2L2 \
-		archive | xcbeautify
-	@echo "📦 Exporting app..."
-	@xcodebuild -exportArchive -archivePath $(ARCHIVE_PATH) \
-		-exportPath $(EXPORT_DIR) -exportOptionsPlist ExportOptionsHomebrew.plist | xcbeautify
-	@echo "🗜️  Creating zip..."
-	@cd $(EXPORT_DIR) && zip -r -X $(ZIP_NAME) $(APP_NAME)
+	@$(MAKE) notarize
+	@echo "🗜️  Creating release zip..."
+	@cp "$(ZIP_PATH)" "$(EXPORT_DIR)/$(ZIP_NAME)"
 	@echo "🏷️  Creating GitHub release..."
 	@git tag $(TAG) || true
 	@git push --no-verify origin $(TAG) || true
