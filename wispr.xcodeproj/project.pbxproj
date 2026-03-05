@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		000C012F2F50C874003B4CDA /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = 000C012E2F50C874003B4CDA /* WhisperKit */; };
+		00FA01002F58A00000000001 /* FluidAudio in Frameworks */ = {isa = PBXBuildFile; productRef = 00FA01012F58A00000000001 /* FluidAudio */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -58,6 +59,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				000C012F2F50C874003B4CDA /* WhisperKit in Frameworks */,
+				00FA01002F58A00000000001 /* FluidAudio in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -120,6 +122,7 @@
 			name = wispr;
 			packageProductDependencies = (
 				000C012E2F50C874003B4CDA /* WhisperKit */,
+				00FA01012F58A00000000001 /* FluidAudio */,
 			);
 			productName = wispr;
 			productReference = 00A1C0B62F50AD06001D1A22 /* wispr.app */;
@@ -205,6 +208,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				000C012D2F50C874003B4CDA /* XCRemoteSwiftPackageReference "WhisperKit" */,
+				00FA01022F58A00000000001 /* XCRemoteSwiftPackageReference "FluidAudio" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 00A1C0B72F50AD06001D1A22 /* Products */;
@@ -646,6 +650,14 @@
 				minimumVersion = 0.15.0;
 			};
 		};
+		00FA01022F58A00000000001 /* XCRemoteSwiftPackageReference "FluidAudio" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/FluidInference/FluidAudio.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.12.1;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -653,6 +665,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 000C012D2F50C874003B4CDA /* XCRemoteSwiftPackageReference "WhisperKit" */;
 			productName = WhisperKit;
+		};
+		00FA01012F58A00000000001 /* FluidAudio */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 00FA01022F58A00000000001 /* XCRemoteSwiftPackageReference "FluidAudio" */;
+			productName = FluidAudio;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

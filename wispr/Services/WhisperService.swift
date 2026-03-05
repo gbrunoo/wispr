@@ -74,7 +74,7 @@ actor WhisperService {
     /// Requirement 7.1: Return hardcoded list of standard Whisper models.
     ///
     /// - Returns: Array of ModelInfo with model details
-    func availableModels() -> [ModelInfo] {
+    func availableModels() async -> [ModelInfo] {
         return [
             ModelInfo(
                 id: "tiny",
@@ -124,7 +124,7 @@ actor WhisperService {
     ///
     /// - Parameter model: The model to download
     /// - Returns: An AsyncThrowingStream of DownloadProgress updates
-    func downloadModel(_ model: ModelInfo) -> AsyncThrowingStream<DownloadProgress, Error> {
+    func downloadModel(_ model: ModelInfo) async -> AsyncThrowingStream<DownloadProgress, Error> {
         let (stream, continuation) = AsyncThrowingStream.makeStream(of: DownloadProgress.self)
         
         // Requirement 7.4: Handle concurrent download tasks
@@ -247,11 +247,11 @@ actor WhisperService {
     func deleteModel(_ modelName: String) async throws {
         // Requirement 7.9: If deleting the active model, switch to another model first
         if modelName == activeModelName {
-            let availableModels = self.availableModels()
-            
+            let availableModels = await self.availableModels()
+
             var downloadedModels: [ModelInfo] = []
             for model in availableModels where model.id != modelName {
-                let status = modelStatus(model.id)
+                let status = await modelStatus(model.id)
                 // Use pattern matching to avoid Swift 6 concurrency warning
                 if case .downloaded = status {
                     downloadedModels.append(model)
@@ -342,7 +342,12 @@ actor WhisperService {
         activeModelName = nil
         try await loadModel(modelName)
     }
-    
+
+    func unloadCurrentModel() async {
+        whisperKit = nil
+        activeModelName = nil
+    }
+
     /// Validates the integrity of a downloaded model by checking that its
     /// directory exists and contains at least one file.
     ///
@@ -567,7 +572,7 @@ actor WhisperService {
     /// Returns the status of a specific model.
     ///
     /// Requirement 7.7: Query model status (not downloaded, downloading, downloaded, active).
-    func modelStatus(_ modelName: String) -> ModelStatus {
+    func modelStatus(_ modelName: String) async -> ModelStatus {
         if downloadTasks[modelName] != nil {
             Log.whisperService.debug("modelStatus('\(modelName)') → .downloading")
             return .downloading(progress: 0.0)
@@ -607,7 +612,7 @@ actor WhisperService {
     /// Returns the name of the currently active model.
     ///
     /// Requirement 7.7: Query which model is currently active.
-    func activeModel() -> String? {
+    func activeModel() async -> String? {
         return activeModelName
     }
 }
@@ -626,7 +631,7 @@ extension WhisperService: TranscriptionEngine {
     func transcribeStream(
         _ audioStream: AsyncStream<[Float]>,
         language: TranscriptionLanguage
-    ) -> AsyncThrowingStream<TranscriptionResult, Error> {
+    ) async -> AsyncThrowingStream<TranscriptionResult, Error> {
         let (stream, continuation) = AsyncThrowingStream.makeStream(of: TranscriptionResult.self)
 
         let task = Task {

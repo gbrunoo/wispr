@@ -67,7 +67,11 @@ final class WisprAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
     let audioEngine = AudioEngine()
 
     /// On-device transcription service (actor).
-    let whisperService: any TranscriptionEngine = WhisperService()
+    /// Composite engine aggregating WhisperKit and Parakeet V3 behind a single interface.
+    let whisperService: any TranscriptionEngine = CompositeTranscriptionEngine(engines: [
+        WhisperService(),
+        ParakeetService()
+    ])
 
     /// Text insertion via Accessibility API / clipboard fallback.
     let textInsertionService = TextInsertionService()

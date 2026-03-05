@@ -17,10 +17,10 @@ protocol TranscriptionEngine: Actor {
     // MARK: - Model Management
 
     /// Returns the list of models this engine supports.
-    func availableModels() -> [ModelInfo]
+    func availableModels() async -> [ModelInfo]
 
     /// Downloads a model with progress reporting.
-    func downloadModel(_ model: ModelInfo) -> AsyncThrowingStream<DownloadProgress, Error>
+    func downloadModel(_ model: ModelInfo) async -> AsyncThrowingStream<DownloadProgress, Error>
 
     /// Deletes a downloaded model from disk.
     func deleteModel(_ modelName: String) async throws
@@ -31,14 +31,17 @@ protocol TranscriptionEngine: Actor {
     /// Unloads the current model and loads a different one.
     func switchModel(to modelName: String) async throws
 
+    /// Unloads the currently loaded model from memory without deleting its files.
+    func unloadCurrentModel() async
+
     /// Checks whether a downloaded model's files are intact.
     func validateModelIntegrity(_ modelName: String) async throws -> Bool
 
     /// Returns the current status of a model (not downloaded, downloading, downloaded, active).
-    func modelStatus(_ modelName: String) -> ModelStatus
+    func modelStatus(_ modelName: String) async -> ModelStatus
 
     /// Returns the name of the currently loaded model, or nil if none is loaded.
-    func activeModel() -> String?
+    func activeModel() async -> String?
 
     /// Attempts to reload the active model with exponential backoff retry.
     func reloadModelWithRetry(maxAttempts: Int) async throws
@@ -61,7 +64,7 @@ protocol TranscriptionEngine: Actor {
     func transcribeStream(
         _ audioStream: AsyncStream<[Float]>,
         language: TranscriptionLanguage
-    ) -> AsyncThrowingStream<TranscriptionResult, Error>
+    ) async -> AsyncThrowingStream<TranscriptionResult, Error>
 }
 
 // MARK: - Default Parameter Convenience
