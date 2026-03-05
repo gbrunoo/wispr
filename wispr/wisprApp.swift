@@ -172,6 +172,9 @@ final class WisprAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
 
         // Requirement 13.1, 13.12: Show onboarding on first launch
         if !settingsStore.onboardingCompleted {
+            // During onboarding, model loading happens in the model selection step.
+            // Start idle so the hotkey works for the test dictation step.
+            sm.markAsReady()
             showOnboardingWindow(stateManager: sm)
         } else {
             // Load the active model on subsequent launches so whisperKit is ready
