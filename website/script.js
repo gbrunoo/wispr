@@ -16,6 +16,12 @@ document.querySelectorAll('a[href^="#"]').forEach(anchor => {
 async function fetchLatestRelease() {
     try {
         const response = await fetch('https://api.github.com/repos/sebsto/wispr/releases/latest');
+        
+        // Check if response is OK (status 200-299)
+        if (!response.ok) {
+            throw new Error(`GitHub API returned ${response.status}: ${response.statusText}`);
+        }
+        
         const data = await response.json();
         
         const downloadLink = document.getElementById('download-link');
