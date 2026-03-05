@@ -19,10 +19,17 @@ website/
 ├── styles.css              # All styling and animations
 ├── script.js               # Interactive features and animations
 ├── icon.svg                # Wispr logo
+├── CNAME                   # Custom domain configuration
 ├── screenshots/            # App screenshots
 │   ├── menu.png
 │   ├── settings.png
-│   └── model-management.png
+│   ├── model-management.png
+│   ├── onboarding-01.png
+│   ├── onboarding-02.png
+│   ├── onboarding-03.png
+│   ├── onboarding-04.png
+│   ├── onboarding-05.png
+│   └── onboarding-06.png
 └── README.md               # This file
 ```
 
@@ -31,12 +38,14 @@ The website is completely self-contained with all assets included.
 ## Sections
 
 1. **Hero** - Eye-catching introduction with logo and call-to-action
-2. **Features** - Four key features in card layout
-3. **How It Works** - Three-step process explanation
-4. **Screenshots** - Visual showcase of the app interface
-5. **Use Cases** - Four different user scenarios
-6. **Support** - Donation call-to-action with Revolut link
-7. **Footer** - Links and copyright information
+2. **Download/Install** - Homebrew installation commands and download button with donate option
+3. **Features** - Four key features in card layout
+4. **How It Works** - Three-step process explanation
+5. **Onboarding** - Interactive carousel showing the 6-step onboarding experience
+6. **Screenshots** - Visual showcase of the app interface
+7. **Use Cases** - Four different user scenarios
+8. **Support** - Donation call-to-action with Revolut link
+9. **Footer** - Links and copyright information
 
 ## Usage
 
@@ -95,6 +104,7 @@ All images are included in the website directory:
 - `screenshots/menu.png` - Menu bar screenshot
 - `screenshots/settings.png` - Settings screenshot
 - `screenshots/model-management.png` - Model management screenshot
+- `screenshots/onboarding-01.png` through `onboarding-06.png` - Onboarding flow screenshots
 
 The website is completely self-contained and portable.
 
