@@ -134,21 +134,31 @@ help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-list-downloads: ## List downloaded Whisper models in the sandbox container
-	@if [ -d "$(MODEL_DIR)" ]; then \
-		echo "Downloaded models in $(MODEL_DIR):"; \
-		du -sh "$(MODEL_DIR)"/models/argmaxinc/whisperkit-coreml/*/ 2>/dev/null || echo "  (none)"; \
-	else \
-		echo "No model directory found at $(MODEL_DIR)"; \
-	fi
+list-downloads: ## List all downloaded models (Whisper + Parakeet) in the sandbox container
+	@echo "Downloaded models in $(MODEL_DIR):"
+	@echo ""
+	@echo "— Whisper (WhisperKit) —"
+	@du -sh "$(MODEL_DIR)"/models/argmaxinc/whisperkit-coreml/*/ 2>/dev/null || echo "  (none)"
+	@echo ""
+	@echo "— Parakeet V3 (FluidAudio) —"
+	@du -sh "$(MODEL_DIR)"/models/parakeet-tdt*/ 2>/dev/null || echo "  (none)"
+	@echo ""
+	@echo "— Parakeet EOU (FluidAudio) —"
+	@du -sh "$(MODEL_DIR)"/models/parakeet-eou-streaming/ 2>/dev/null || echo "  (none)"
 
-clean-downloads: ## Delete all downloaded Whisper models from the sandbox container
+clean-downloads: ## Delete all downloaded models (Whisper + Parakeet) from the sandbox container
 	@if [ -d "$(MODEL_DIR)" ]; then \
 		echo "Removing $(MODEL_DIR) …"; \
 		rm -rf "$(MODEL_DIR)"; \
 		echo "Done."; \
 	else \
 		echo "Nothing to clean — $(MODEL_DIR) does not exist."; \
+	fi
+	@# Clean legacy FluidAudio location in case models were downloaded before unification
+	@if [ -d "$(CONTAINER)/Library/Application Support/FluidAudio" ]; then \
+		echo "Removing legacy FluidAudio model cache …"; \
+		rm -rf "$(CONTAINER)/Library/Application Support/FluidAudio"; \
+		echo "Done."; \
 	fi
 
 list-container: ## Inspect the sandbox container directory
