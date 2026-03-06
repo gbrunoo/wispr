@@ -55,7 +55,7 @@ actor CompositeTranscriptionEngine: TranscriptionEngine {
         // Wrap so activeEngineIndex updates only after successful completion.
         let (outer, continuation) = AsyncThrowingStream.makeStream(of: DownloadProgress.self)
         let engine = self
-        Task {
+        let task = Task {
             do {
                 for try await progress in innerStream {
                     continuation.yield(progress)
@@ -65,6 +65,9 @@ actor CompositeTranscriptionEngine: TranscriptionEngine {
             } catch {
                 continuation.finish(throwing: error)
             }
+        }
+        continuation.onTermination = { _ in
+            task.cancel()
         }
         return outer
     }
