@@ -46,10 +46,14 @@ actor ParakeetService {
     }
 
     /// Cache directory for Parakeet V3 models.
-    /// FluidAudio's `AsrModels.downloadAndLoad(to:)` expects the leaf directory
-    /// (the repo folder name is appended internally by the SDK).
+    ///
+    /// `AsrModels.downloadAndLoad(to:)` expects the leaf directory whose last
+    /// path component matches the SDK's internal repo folder name.  We derive
+    /// that name from `AsrModels.defaultCacheDirectory(for: .v3)` so we stay
+    /// in sync even if the SDK renames the folder in a future release.
     private func v3CacheDirectory() -> URL {
-        modelDownloadBase
+        let sdkLeaf = AsrModels.defaultCacheDirectory(for: .v3).lastPathComponent
+        return modelDownloadBase.appendingPathComponent(sdkLeaf, isDirectory: true)
     }
 
     // MARK: - UserDefaults Flags

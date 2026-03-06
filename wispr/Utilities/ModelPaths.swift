@@ -25,6 +25,9 @@ enum ModelPaths {
     /// Resolves to:
     /// - Sandboxed:     `~/Library/Containers/<bundle-id>/Data/Library/Application Support/wispr/`
     /// - Non-sandboxed: `~/Library/Application Support/wispr/`
+    /// `nonisolated` because the project uses `@MainActor` as default isolation,
+    /// but both WhisperService and ParakeetService (custom actors) need synchronous
+    /// access. This is safe — the property is a pure computation with no mutable state.
     nonisolated static var base: URL {
         guard let appSupport = FileManager.default.urls(
             for: .applicationSupportDirectory,
