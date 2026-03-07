@@ -39,7 +39,7 @@ private func createTestController(
 
     let themeEngine = UIThemeEngine()
 
-    let updateChecker = UpdateChecker(currentVersion: "1.0.0", httpProvider: URLSession.shared)
+    let updateChecker = UpdateChecker(currentVersion: "1.0.0", httpProvider: NoOpHTTPProvider())
 
     let controller = MenuBarController(
         stateManager: stateManager,
