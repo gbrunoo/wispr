@@ -225,6 +225,8 @@ struct ModelRowView: View {
                 if isActivating {
                     ProgressView()
                         .controlSize(.small)
+                        .accessibilityLabel("Activating \(model.displayName)")
+                        .accessibilityValue("Loading model into memory")
                 } else {
                     Button {
                         Task { await onSetActive() }
@@ -280,7 +282,7 @@ struct ModelRowView: View {
         case .downloading(let progress):
             parts.append("Downloading \(Int(progress * 100)) percent")
         case .downloaded:
-            parts.append("Downloaded")
+            parts.append(isActivating ? "Activating" : "Downloaded")
         case .active:
             parts.append("Active")
         }
