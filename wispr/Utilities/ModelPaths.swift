@@ -16,10 +16,9 @@ import Foundation
 ///
 /// WhisperKit appends its own `models/argmaxinc/whisperkit-coreml/<variant>/`
 /// subtree beneath this root. FluidAudio's `AsrModels.downloadAndLoad(to:)`
-/// and `DownloadUtils.downloadRepo(_:to:)` expect the `to` URL to be the
-/// final target directory for a given repo (for example,
-/// `.../models/parakeet-tdt-v3`); they do not add an extra repo folder
-/// beneath that path.
+/// and `DownloadUtils.downloadRepo(_:to:)` are given a base directory under
+/// which they manage per-repo folders (for example,
+/// `.../Application Support/wispr/models/parakeet-tdt-v3`).
 enum ModelPaths {
 
     /// Base directory shared by all model engines.
