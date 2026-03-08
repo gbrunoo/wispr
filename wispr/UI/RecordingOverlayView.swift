@@ -57,10 +57,13 @@ struct RecordingOverlayView: View {
             // Reset slow-loading flag on every state change; only re-arm for .loading.
             isLoadingSlow = false
             if case .loading = stateManager.appState {
-                try? await Task.sleep(for: .seconds(10))
-                if !Task.isCancelled {
-                    isLoadingSlow = true
+                do {
+                    try await Task.sleep(for: .seconds(10))
+                } catch {
+                    return
                 }
+                guard !Task.isCancelled, case .loading = stateManager.appState else { return }
+                isLoadingSlow = true
             }
         }
         .onAppear {
