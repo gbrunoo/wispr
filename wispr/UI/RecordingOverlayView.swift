@@ -34,6 +34,12 @@ struct RecordingOverlayView: View {
     /// Whether the recording glow pulse is in its "on" phase.
     @State private var isGlowActive: Bool = false
 
+    /// Whether model loading has exceeded the slow-loading threshold (10s).
+    @State private var isLoadingSlow: Bool = false
+
+    /// Task that fires after the slow-loading threshold to update the message.
+    @State private var slowLoadingTask: Task<Void, Never>?
+
     /// Scaled overlay width for Dynamic Type support (Req 17.7).
     @ScaledMetric(relativeTo: .body) private var overlayWidth: CGFloat = 240
 
@@ -81,15 +87,18 @@ struct RecordingOverlayView: View {
     }
     
     /// Loading state: spinner + label.
+    /// After 10 seconds, the message updates to reassure the user.
     private var loadingContent: some View {
         HStack(spacing: 12) {
             ProgressView()
                 .controlSize(.small)
                 .accessibilityHidden(true)
 
-            Text("Loading…")
+            Text(isLoadingSlow ? "Still loading — this can take a moment…" : "Loading…")
                 .font(.callout)
                 .foregroundStyle(theme.primaryTextColor)
+                .contentTransition(.opacity)
+                .animation(.easeInOut(duration: 0.3), value: isLoadingSlow)
         }
     }
 
@@ -184,13 +193,38 @@ struct RecordingOverlayView: View {
 
     private func handleStateChange(_ state: AppStateType) {
         switch state {
+        case .loading:
+            stopConsumingAudioLevels()
+            stopGlowAnimation()
+            startSlowLoadingTimer()
         case .recording:
+            cancelSlowLoadingTimer()
             startConsumingAudioLevels()
             startGlowAnimation()
         default:
+            cancelSlowLoadingTimer()
             stopConsumingAudioLevels()
             stopGlowAnimation()
         }
+    }
+
+    // MARK: - Slow Loading Timer
+
+    /// Starts a 10-second timer that flips `isLoadingSlow` to show a reassurance message.
+    private func startSlowLoadingTimer() {
+        cancelSlowLoadingTimer()
+        slowLoadingTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(10))
+            guard !Task.isCancelled else { return }
+            isLoadingSlow = true
+        }
+    }
+
+    /// Cancels the slow-loading timer and resets the flag.
+    private func cancelSlowLoadingTimer() {
+        slowLoadingTask?.cancel()
+        slowLoadingTask = nil
+        isLoadingSlow = false
     }
 
     // MARK: - Audio Level Stream Consumption
@@ -255,7 +289,7 @@ struct RecordingOverlayView: View {
     private var accessibilityLabelForState: String {
         switch stateManager.appState {
         case .loading:
-            "Loading"
+            isLoadingSlow ? "Still loading model" : "Loading"
         case .recording:
             "Recording in progress"
         case .processing:
