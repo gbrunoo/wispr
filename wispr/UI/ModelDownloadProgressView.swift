@@ -42,6 +42,7 @@ struct ModelDownloadProgressView: View {
     @State private var isLoadingModel: Bool = false
     @State private var isWarmingUp: Bool = false
     @State private var lastProgressUpdate: Date = .now
+    @State private var downloadTask: Task<Void, Never>?
 
     // MARK: - Init
 
@@ -130,12 +131,14 @@ struct ModelDownloadProgressView: View {
                     .font(.callout)
                     .foregroundStyle(theme.secondaryTextColor)
                 Spacer()
-                Button("Cancel", role: .cancel) {
-                    cancelDownload()
+                if onCancel != nil {
+                    Button("Cancel", role: .cancel) {
+                        cancelDownload()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .accessibilityLabel("Cancel download")
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .accessibilityLabel("Cancel download")
             }
 
             // Show a hint when progress hasn't updated for a while
@@ -257,10 +260,11 @@ struct ModelDownloadProgressView: View {
         isComplete = false
         lastProgressUpdate = .now
 
-        Task {
+        downloadTask = Task {
             do {
                 let stream = await whisperService.downloadModel(model)
                 for try await downloadProgress in stream {
+                    try Task.checkCancellation()
                     switch downloadProgress.phase {
                     case .downloading:
                         if downloadProgress.fractionCompleted != progress {
@@ -284,6 +288,8 @@ struct ModelDownloadProgressView: View {
                 isComplete = true
                 isDownloading = false
                 onComplete?(model.id)
+            } catch is CancellationError {
+                // Download was cancelled — UI state already reset by cancelDownload()
             } catch {
                 self.error = error.localizedDescription
                 isDownloading = false
@@ -294,6 +300,8 @@ struct ModelDownloadProgressView: View {
     }
 
     private func cancelDownload() {
+        downloadTask?.cancel()
+        downloadTask = nil
         isDownloading = false
         isLoadingModel = false
         isWarmingUp = false
