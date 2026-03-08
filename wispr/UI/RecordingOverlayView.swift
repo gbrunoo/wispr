@@ -34,6 +34,9 @@ struct RecordingOverlayView: View {
     /// Whether the recording glow pulse is in its "on" phase.
     @State private var isGlowActive: Bool = false
 
+    /// Whether model loading has exceeded the slow-loading threshold (10s).
+    @State private var isLoadingSlow: Bool = false
+
     /// Scaled overlay width for Dynamic Type support (Req 17.7).
     @ScaledMetric(relativeTo: .body) private var overlayWidth: CGFloat = 240
 
@@ -50,6 +53,19 @@ struct RecordingOverlayView: View {
         .highContrastBorder(cornerRadius: 16)
         .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
         .motionRespectingAnimation(value: stateManager.appState)
+        .task(id: stateManager.appState) {
+            // Reset slow-loading flag on every state change; only re-arm for .loading.
+            isLoadingSlow = false
+            if case .loading = stateManager.appState {
+                do {
+                    try await Task.sleep(for: .seconds(10))
+                } catch {
+                    return
+                }
+                guard !Task.isCancelled, case .loading = stateManager.appState else { return }
+                isLoadingSlow = true
+            }
+        }
         .onAppear {
             handleStateChange(stateManager.appState)
         }
@@ -81,15 +97,18 @@ struct RecordingOverlayView: View {
     }
     
     /// Loading state: spinner + label.
+    /// After 10 seconds, the message updates to reassure the user.
     private var loadingContent: some View {
         HStack(spacing: 12) {
             ProgressView()
                 .controlSize(.small)
                 .accessibilityHidden(true)
 
-            Text("Loading…")
+            Text(isLoadingSlow ? "Still loading — this can take a moment…" : "Loading…")
                 .font(.callout)
                 .foregroundStyle(theme.primaryTextColor)
+                .contentTransition(.opacity)
+                .animation(.easeInOut(duration: 0.3), value: isLoadingSlow)
         }
     }
 
@@ -255,7 +274,7 @@ struct RecordingOverlayView: View {
     private var accessibilityLabelForState: String {
         switch stateManager.appState {
         case .loading:
-            "Loading"
+            isLoadingSlow ? "Still loading model" : "Loading"
         case .recording:
             "Recording in progress"
         case .processing:
