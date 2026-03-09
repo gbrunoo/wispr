@@ -201,7 +201,7 @@ final class MenuBarController {
         menu.addItem(updateSeparator)
         menu.addItem(updateMenuItem)
 
-        updateUpdateMenuItem()
+        refreshUpdateMenuItem()
 
         menu.addItem(NSMenuItem.separator())
 
@@ -253,8 +253,8 @@ final class MenuBarController {
 
     // MARK: - Update Menu Item
 
-    /// Updates the update menu item visibility and title based on `updateChecker.availableUpdate`.
-    private func updateUpdateMenuItem() {
+    /// Refreshes the update menu item visibility and title based on `updateChecker.availableUpdate`.
+    private func refreshUpdateMenuItem() {
         if let update = updateChecker.availableUpdate {
             updateMenuItem.title = "Update Available: \(update.version)"
             updateMenuItem.isHidden = false
@@ -418,7 +418,7 @@ final class MenuBarController {
 
                 self.updateIcon(for: currentState)
                 self.updateRecordingMenuItem()
-                self.updateUpdateMenuItem()
+                self.refreshUpdateMenuItem()
                 self.languageMenuItem.title = self.languageDisplayTitle()
                 self.buildLanguageSubmenu()
 
