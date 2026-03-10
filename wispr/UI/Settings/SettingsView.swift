@@ -53,9 +53,10 @@ struct SettingsView: View {
     private let audioEngine: AudioEngine
     private let whisperService: any TranscriptionEngine
 
-    init(audioEngine: AudioEngine, whisperService: any TranscriptionEngine) {
+    init(audioEngine: AudioEngine, whisperService: any TranscriptionEngine, initialModelId: String) {
         self.audioEngine = audioEngine
         self.whisperService = whisperService
+        self._selectedModelId = State(initialValue: initialModelId)
     }
 
     var body: some View {
@@ -196,9 +197,6 @@ struct SettingsView: View {
                     }
                     await loadWhisperModels()
                     activatingModelId = nil
-                }
-                .onAppear {
-                    selectedModelId = settingsStore.activeModelName
                 }
                 .onChange(of: settingsStore.activeModelName) { _, newName in
                     guard activatingModelId == nil else { return }
@@ -388,7 +386,8 @@ private struct SettingsPreview: View {
     var body: some View {
         SettingsView(
             audioEngine: PreviewMocks.makeAudioEngine(),
-            whisperService: PreviewMocks.makeWhisperService()
+            whisperService: PreviewMocks.makeWhisperService(),
+            initialModelId: settingsStore.activeModelName
         )
         .environment(settingsStore)
         .environment(theme)
