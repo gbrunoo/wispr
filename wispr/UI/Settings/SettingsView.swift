@@ -194,8 +194,8 @@ struct SettingsView: View {
                         // Revert picker to the actual active model on failure
                         selectedModelId = settingsStore.activeModelName
                     }
-                    activatingModelId = nil
                     await loadWhisperModels()
+                    activatingModelId = nil
                 }
                 .onAppear {
                     selectedModelId = settingsStore.activeModelName
