@@ -343,10 +343,18 @@ struct ModelManagementView: View {
 private struct ModelManagementPreview: View {
     @State private var settingsStore = PreviewMocks.makeSettingsStore()
     @State private var theme = PreviewMocks.makeTheme()
-    @State private var stateManager = PreviewMocks.makeStateManager()
+
+    private let whisperService: any TranscriptionEngine
+    @State private var stateManager: StateManager
+
+    init() {
+        let service = PreviewMocks.makeWhisperService()
+        self.whisperService = service
+        self._stateManager = State(initialValue: PreviewMocks.makeStateManager(whisperService: service))
+    }
 
     var body: some View {
-        ModelManagementView(whisperService: PreviewMocks.makeWhisperService())
+        ModelManagementView(whisperService: whisperService)
             .environment(settingsStore)
             .environment(theme)
             .environment(stateManager)

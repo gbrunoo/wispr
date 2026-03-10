@@ -381,12 +381,20 @@ private struct SettingsPreview: View {
     @State private var settingsStore = PreviewMocks.makeSettingsStore()
     @State private var theme = PreviewMocks.makeTheme()
     @State private var updateChecker = PreviewMocks.makeUpdateChecker()
-    @State private var stateManager = PreviewMocks.makeStateManager()
+    @State private var stateManager: StateManager
+
+    private let whisperService: any TranscriptionEngine
+
+    init() {
+        let service = PreviewMocks.makeWhisperService()
+        self.whisperService = service
+        self._stateManager = State(initialValue: PreviewMocks.makeStateManager(whisperService: service))
+    }
 
     var body: some View {
         SettingsView(
             audioEngine: PreviewMocks.makeAudioEngine(),
-            whisperService: PreviewMocks.makeWhisperService(),
+            whisperService: whisperService,
             initialModelId: settingsStore.activeModelName
         )
         .environment(settingsStore)
