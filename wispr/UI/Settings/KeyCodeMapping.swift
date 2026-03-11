@@ -9,7 +9,9 @@
 
 import Carbon
 
-enum KeyCodeMapping {
+struct KeyCodeMapping {
+
+    static let shared = KeyCodeMapping()
 
     /// Single source of truth: virtual key code → display name.
     /// Includes typeable keys, function keys, navigation keys, and special keys.
@@ -38,11 +40,11 @@ enum KeyCodeMapping {
     ]
 
     /// Derived reverse mapping: lowercase character → virtual key code.
-    /// Includes single-character key names (letters, digits, punctuation)
-    /// and SwiftUI KeyEquivalent special characters (arrows, return, tab, etc.).
-    private static let charToKeyCode: [Character: UInt32] = {
+    private let charToKeyCode: [Character: UInt32]
+
+    private init() {
         var map: [Character: UInt32] = [:]
-        for (code, name) in keyNames where name.count == 1 {
+        for (code, name) in Self.keyNames where name.count == 1 {
             map[Character(name.lowercased())] = code
         }
         map[" "] = 49  // Space
@@ -70,21 +72,21 @@ enum KeyCodeMapping {
         map[Character("\u{F72B}")] = 119 // End
         map[Character("\u{F72C}")] = 116 // Page Up
         map[Character("\u{F72D}")] = 121 // Page Down
-        return map
-    }()
+        charToKeyCode = map
+    }
 
     /// Returns the virtual key code for a typeable character, or `nil` for unmapped characters.
-    static func keyCode(for character: Character) -> UInt32? {
+    func keyCode(for character: Character) -> UInt32? {
         charToKeyCode[character]
     }
 
     /// Returns a human-readable display string for a virtual key code.
-    static func displayString(for keyCode: UInt32) -> String {
-        keyNames[keyCode] ?? "Key \(keyCode)"
+    func displayString(for keyCode: UInt32) -> String {
+        Self.keyNames[keyCode] ?? "Key \(keyCode)"
     }
 
     /// Builds a display string for modifier flags using standard macOS symbols.
-    static func modifierDisplayString(for carbonModifiers: UInt32) -> String {
+    func modifierDisplayString(for carbonModifiers: UInt32) -> String {
         var parts: [String] = []
         if carbonModifiers & UInt32(controlKey) != 0 { parts.append("\u{2303}") }
         if carbonModifiers & UInt32(optionKey) != 0 { parts.append("\u{2325}") }
@@ -94,7 +96,7 @@ enum KeyCodeMapping {
     }
 
     /// Full hotkey display string: modifier symbols + key name.
-    static func hotkeyDisplayString(keyCode: UInt32, modifiers: UInt32) -> String {
+    func hotkeyDisplayString(keyCode: UInt32, modifiers: UInt32) -> String {
         modifierDisplayString(for: modifiers) + displayString(for: keyCode)
     }
 }

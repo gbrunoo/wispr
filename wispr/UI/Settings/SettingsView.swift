@@ -53,10 +53,9 @@ struct SettingsView: View {
     private let audioEngine: AudioEngine
     private let whisperService: any TranscriptionEngine
 
-    init(audioEngine: AudioEngine, whisperService: any TranscriptionEngine, initialModelId: String) {
+    init(audioEngine: AudioEngine, whisperService: any TranscriptionEngine) {
         self.audioEngine = audioEngine
         self.whisperService = whisperService
-        self._selectedModelId = State(initialValue: initialModelId)
     }
 
     var body: some View {
@@ -86,6 +85,7 @@ struct SettingsView: View {
             Text("All settings will be reset to their original values. This cannot be undone.")
         }
         .task {
+            selectedModelId = settingsStore.activeModelName
             await loadAudioDevices()
             await loadWhisperModels()
         }
@@ -394,8 +394,7 @@ private struct SettingsPreview: View {
     var body: some View {
         SettingsView(
             audioEngine: PreviewMocks.makeAudioEngine(),
-            whisperService: whisperService,
-            initialModelId: settingsStore.activeModelName
+            whisperService: whisperService
         )
         .environment(settingsStore)
         .environment(theme)

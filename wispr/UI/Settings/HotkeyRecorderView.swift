@@ -36,7 +36,7 @@ struct HotkeyRecorderView: View {
                     Text("Press keys\u{2026}")
                         .foregroundStyle(.secondary)
                 } else {
-                    Text(KeyCodeMapping.hotkeyDisplayString(keyCode: keyCode, modifiers: modifiers))
+                    Text(KeyCodeMapping.shared.hotkeyDisplayString(keyCode: keyCode, modifiers: modifiers))
                         .fontWeight(.medium)
                         .foregroundStyle(.primary)
                 }
@@ -56,7 +56,7 @@ struct HotkeyRecorderView: View {
         .accessibilityLabel(
             isRecording
                 ? "Recording hotkey, press desired key combination"
-                : "Current hotkey: \(KeyCodeMapping.hotkeyDisplayString(keyCode: keyCode, modifiers: modifiers))"
+                : "Current hotkey: \(KeyCodeMapping.shared.hotkeyDisplayString(keyCode: keyCode, modifiers: modifiers))"
         )
         .accessibilityHint("Click to record a new hotkey")
         .onKeyPress(phases: .down) { keyPress in
@@ -97,7 +97,7 @@ struct HotkeyRecorderView: View {
         // keyPress.characters (which is altered by modifiers, e.g. Option+Space
         // produces non-breaking space, Option+A produces "å").
         let logicalChar = Character(String(keyPress.key.character).lowercased())
-        guard let newKeyCode = KeyCodeMapping.keyCode(for: logicalChar) else {
+        guard let newKeyCode = KeyCodeMapping.shared.keyCode(for: logicalChar) else {
             errorMessage = "Unsupported key. Use a standard letter, number, or punctuation key."
             return
         }

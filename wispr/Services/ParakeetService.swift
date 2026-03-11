@@ -22,8 +22,9 @@ actor ParakeetService {
     nonisolated(unsafe) private var eouManager: StreamingEouAsrManager?
 
     // MARK: - Shared State
+    private let defaults: UserDefaults
     private var activeModelName: String?
-    private var downloadTasks: [String: Bool] = [:]
+    private var downloadTasks: [String: Task<Void, Never>] = [:]
 
     // MARK: - V3 Constants
     private static let expectedFileCount = 23
@@ -35,18 +36,22 @@ actor ParakeetService {
 
     // MARK: - UserDefaults Flags
     private var isDownloaded: Bool {
-        get { UserDefaults.standard.bool(forKey: Self.downloadedKey) }
-        set { UserDefaults.standard.set(newValue, forKey: Self.downloadedKey) }
+        didSet { defaults.set(isDownloaded, forKey: Self.downloadedKey) }
     }
 
     private var isEouDownloaded: Bool {
-        get { UserDefaults.standard.bool(forKey: Self.eouDownloadedKey) }
-        set { UserDefaults.standard.set(newValue, forKey: Self.eouDownloadedKey) }
+        didSet { defaults.set(isEouDownloaded, forKey: Self.eouDownloadedKey) }
+    }
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        self.isDownloaded = defaults.bool(forKey: Self.downloadedKey)
+        self.isEouDownloaded = defaults.bool(forKey: Self.eouDownloadedKey)
     }
 
     // MARK: - Internal helpers
 
-    private static func countFiles(in directory: URL) -> Int {
+    private func countFiles(in directory: URL) -> Int {
         guard let enumerator = FileManager.default.enumerator(
             at: directory,
             includingPropertiesForKeys: nil,
@@ -81,7 +86,7 @@ actor ParakeetService {
 
     private func downloadAndLoadEou() async throws {
         let cacheDir = ModelPaths.parakeetEou
-        let cachedFileCount = Self.countFiles(in: cacheDir)
+        let cachedFileCount = countFiles(in: cacheDir)
 
         // Only download if the cache is incomplete
         if cachedFileCount < Self.eouExpectedFileCount {
@@ -108,12 +113,20 @@ actor ParakeetService {
 
     // MARK: - Audio Helpers
 
-    private nonisolated static func createPCMBuffer(from samples: [Float], sampleRate: Double) -> AVAudioPCMBuffer {
-        let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1)!
-        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(samples.count))!
+    private nonisolated func createPCMBuffer(from samples: [Float], sampleRate: Double) throws -> AVAudioPCMBuffer {
+        guard let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1) else {
+            throw WisprError.audioRecordingFailed("Failed to create audio format for sample rate \(sampleRate)")
+        }
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(samples.count)) else {
+            throw WisprError.audioRecordingFailed("Failed to create PCM buffer with capacity \(samples.count)")
+        }
         buffer.frameLength = AVAudioFrameCount(samples.count)
+        guard let channelData = buffer.floatChannelData else {
+            throw WisprError.audioRecordingFailed("PCM buffer has no float channel data")
+        }
         samples.withUnsafeBufferPointer { ptr in
-            buffer.floatChannelData![0].update(from: ptr.baseAddress!, count: samples.count)
+            guard let baseAddress = ptr.baseAddress else { return }
+            channelData[0].update(from: baseAddress, count: samples.count)
         }
         return buffer
     }
@@ -126,7 +139,7 @@ actor ParakeetService {
 
         await manager.reset()
         let startTime = Date()
-        let buffer = Self.createPCMBuffer(from: audioSamples, sampleRate: 16000)
+        let buffer = try createPCMBuffer(from: audioSamples, sampleRate: 16000)
         _ = try await manager.process(audioBuffer: buffer)
         let text = try await manager.finish()
 
@@ -154,7 +167,7 @@ actor ParakeetService {
             do {
                 for await chunk in audioStream {
                     try Task.checkCancellation()
-                    let buffer = Self.createPCMBuffer(from: chunk, sampleRate: 16000)
+                    let buffer = try createPCMBuffer(from: chunk, sampleRate: 16000)
                     _ = try await manager.process(audioBuffer: buffer)
                 }
                 let finalText = try await manager.finish()
@@ -206,8 +219,6 @@ extension ParakeetService: TranscriptionEngine {
             return stream
         }
 
-        downloadTasks[model.id] = true
-
         let isEou = model.id == ModelInfo.KnownID.parakeetEou
         let estimatedSize = model.estimatedSize
         let expectedFileCount = isEou ? Self.eouExpectedFileCount : Self.expectedFileCount
@@ -219,7 +230,7 @@ extension ParakeetService: TranscriptionEngine {
             cacheDir = ModelPaths.parakeetV3(sdkLeafName: sdkLeaf)
         }
 
-        Task {
+        let task = Task {
             defer { self.downloadTasks.removeValue(forKey: model.id) }
 
             do {
@@ -234,7 +245,7 @@ extension ParakeetService: TranscriptionEngine {
                 let progressTask = Task {
                     while !Task.isCancelled {
                         try await Task.sleep(for: .milliseconds(500))
-                        let count = Self.countFiles(in: cacheDir)
+                        let count = countFiles(in: cacheDir)
                         if count >= expectedFileCount {
                             continuation.yield(DownloadProgress(
                                 phase: .loadingModel,
@@ -277,10 +288,15 @@ extension ParakeetService: TranscriptionEngine {
             }
         }
 
+        downloadTasks[model.id] = task
+
         return stream
     }
 
     func deleteModel(_ modelName: String) async throws {
+        downloadTasks[modelName]?.cancel()
+        downloadTasks.removeValue(forKey: modelName)
+
         if modelName == ModelInfo.KnownID.parakeetEou {
             unloadEou()
             let cacheDir = ModelPaths.parakeetEou
@@ -357,7 +373,7 @@ extension ParakeetService: TranscriptionEngine {
         // UserDefaults flags, which can get out of sync (e.g. model
         // downloaded but flag not yet set, or flag cleared).
         if modelName == ModelInfo.KnownID.parakeetEou {
-            let filesExist = Self.countFiles(in: ModelPaths.parakeetEou) >= Self.eouExpectedFileCount
+            let filesExist = countFiles(in: ModelPaths.parakeetEou) >= Self.eouExpectedFileCount
             if filesExist {
                 if modelName == activeModelName, eouManager != nil {
                     return .active
@@ -367,7 +383,7 @@ extension ParakeetService: TranscriptionEngine {
         } else {
             let sdkLeaf = AsrModels.defaultCacheDirectory(for: .v3).lastPathComponent
             let v3Dir = ModelPaths.parakeetV3(sdkLeafName: sdkLeaf)
-            let filesExist = Self.countFiles(in: v3Dir) >= Self.expectedFileCount
+            let filesExist = countFiles(in: v3Dir) >= Self.expectedFileCount
             if filesExist {
                 if modelName == activeModelName, asrManager != nil {
                     return .active

@@ -231,7 +231,7 @@ final class MenuBarController {
     /// Updates the recording menu item title and action based on current state.
     private func updateRecordingMenuItem() {
         let isRecording = stateManager.appState == .recording
-        let shortcut = KeyCodeMapping.hotkeyDisplayString(
+        let shortcut = KeyCodeMapping.shared.hotkeyDisplayString(
             keyCode: settingsStore.hotkeyKeyCode,
             modifiers: settingsStore.hotkeyModifiers
         )
@@ -482,8 +482,7 @@ final class MenuBarController {
 
         let settingsView = SettingsView(
             audioEngine: audioEngine,
-            whisperService: transcriptionEngine,
-            initialModelId: settingsStore.activeModelName
+            whisperService: transcriptionEngine
         )
         .environment(settingsStore)
         .environment(themeEngine)

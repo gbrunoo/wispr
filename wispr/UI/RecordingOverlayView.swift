@@ -167,7 +167,7 @@ struct RecordingOverlayView: View {
     /// A horizontal VU meter: vertical bars whose height tracks recent audio levels.
     private var audioLevelMeter: some View {
         HStack(spacing: 2) {
-            ForEach(0..<audioLevels.count, id: \.self) { index in
+            ForEach(0..<20, id: \.self) { index in
                 RoundedRectangle(cornerRadius: 1.5, style: .continuous)
                     .fill(barColor(for: audioLevels[index]))
                     .frame(width: 4, height: barHeight(for: audioLevels[index]))

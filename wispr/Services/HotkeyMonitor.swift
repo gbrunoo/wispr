@@ -85,10 +85,8 @@ final class HotkeyMonitor {
             )
         }
 
-        // Install the Carbon event handler for hotkey events
         try installEventHandler()
 
-        // Register the hotkey with Carbon
         var hotKeyRef: EventHotKeyRef?
         let status = RegisterEventHotKey(
             keyCode,
@@ -232,13 +230,12 @@ final class HotkeyMonitor {
             EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyReleased)),
         ]
 
-        // Store a raw pointer to self for the C callback.
-        // This is safe because HotkeyMonitor is @MainActor and the Carbon
-        // event handler also runs on the main thread.
+        // Safe: HotkeyMonitor is @MainActor and Carbon event handlers
+        // also run on the main thread, so the unretained pointer stays valid.
         let selfPtr = Unmanaged.passUnretained(self).toOpaque()
 
-        // Carbon requires a C function pointer. We use a literal closure
-        // that captures no context (only uses the userData parameter).
+        // Carbon requires a C function pointer that captures no context
+        // (only uses the userData parameter).
         let callback: EventHandlerUPP = { nextHandler, event, userData in
             guard let event = event, let userData = userData else {
                 return OSStatus(eventNotHandledErr)

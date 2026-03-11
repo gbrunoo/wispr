@@ -15,47 +15,51 @@ import os
 final class SettingsStore {
     // MARK: - Hotkey Settings
     var hotkeyKeyCode: UInt32 {
-        didSet { save() }
+        didSet { guard !isLoading else { return }; defaults.set(Int(hotkeyKeyCode), forKey: Keys.hotkeyKeyCode) }
     }
-    
+
     var hotkeyModifiers: UInt32 {
-        didSet { save() }
+        didSet { guard !isLoading else { return }; defaults.set(Int(hotkeyModifiers), forKey: Keys.hotkeyModifiers) }
     }
-    
+
     // MARK: - Audio Settings
     var selectedAudioDeviceUID: String? {
-        didSet { save() }
+        didSet { guard !isLoading else { return }; defaults.set(selectedAudioDeviceUID, forKey: Keys.selectedAudioDeviceUID) }
     }
-    
+
     // MARK: - Model Settings
     var activeModelName: String {
-        didSet { save() }
+        didSet { guard !isLoading else { return }; defaults.set(activeModelName, forKey: Keys.activeModelName) }
     }
-    
+
     // MARK: - Language Settings
     var languageMode: TranscriptionLanguage {
-        didSet { save() }
+        didSet {
+            guard !isLoading else { return }
+            if let encoded = try? JSONEncoder().encode(languageMode) {
+                defaults.set(encoded, forKey: Keys.languageMode)
+            }
+        }
     }
-    
+
     // MARK: - General Settings
     var showRecordingOverlay: Bool {
-        didSet { save() }
+        didSet { guard !isLoading else { return }; defaults.set(showRecordingOverlay, forKey: Keys.showRecordingOverlay) }
     }
 
     var launchAtLogin: Bool {
         didSet {
-            save()
             guard !isLoading else { return }
             updateLaunchAtLogin(launchAtLogin)
         }
     }
-    
+
     var onboardingCompleted: Bool {
-        didSet { save() }
+        didSet { guard !isLoading else { return }; defaults.set(onboardingCompleted, forKey: Keys.onboardingCompleted) }
     }
-    
+
     var onboardingLastStep: Int {
-        didSet { save() }
+        didSet { guard !isLoading else { return }; defaults.set(onboardingLastStep, forKey: Keys.onboardingLastStep) }
     }
     
     // MARK: - UserDefaults Keys
@@ -174,13 +178,14 @@ final class SettingsStore {
             Log.app.error("Failed to \(enabled ? "register" : "unregister") login item: \(error)")
         }
         
-        // Always sync back to the actual system state
+        // Always sync back to the actual system state.
+        // The source of truth for launch-at-login is ServiceManagement, not UserDefaults,
+        // so no explicit defaults.set is needed — load() reads from SMAppService.mainApp.status.
         let actualState = service.status == .enabled
         if launchAtLogin != actualState {
             isLoading = true
             launchAtLogin = actualState
             isLoading = false
-            save()
         }
     }
 }
