@@ -318,11 +318,12 @@ final class StateManager {
             // Requirement 2.1: Start audio capture
             let levelStream = try await audioEngine.startCapture()
             audioLevelStream = levelStream
-            // Start EOU monitoring if the active engine supports it.
-            // In push-to-talk this lets recording auto-stop on silence;
-            // in hands-free mode toggleRecording() also calls this, but
-            // the guard inside is idempotent.
-            await startEouMonitoringIfSupported()
+            // Start EOU monitoring only in hands-free mode.
+            // Push-to-talk users control duration by holding the key,
+            // so auto-stopping on silence would be unexpected.
+            if settingsStore.handsFreeMode {
+                await startEouMonitoringIfSupported()
+            }
         } catch let error as WisprError {
             await handleError(error)
         } catch {
