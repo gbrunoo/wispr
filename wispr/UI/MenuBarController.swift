@@ -476,6 +476,7 @@ final class MenuBarController {
 
         if let window = settingsWindow, window.isVisible {
             window.makeKeyAndOrderFront(nil)
+            window.orderFrontRegardless()
             return
         }
 
@@ -497,6 +498,7 @@ final class MenuBarController {
         window.setContentSize(NSSize(width: 560, height: 580))
         window.center()
         window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
         settingsWindow = window
     }
 
