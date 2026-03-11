@@ -101,6 +101,12 @@ final class WisprAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
     /// Task observing hotkey settings changes to re-register the global hotkey.
     private var hotkeyObservationTask: Task<Void, Never>?
 
+    /// Task monitoring permission changes (microphone, accessibility).
+    private var permissionMonitoringTask: Task<Void, Never>?
+
+    /// Task that checks for app updates on launch.
+    private var updateCheckTask: Task<Void, Never>?
+
     /// Retained reference to the onboarding window.
     private var onboardingWindow: NSWindow?
 
@@ -176,13 +182,13 @@ final class WisprAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
         startHotkeyObservation()
 
         // Start permission monitoring
-        Task {
+        permissionMonitoringTask = Task {
             await permissionManager.startMonitoringPermissionChanges()
         }
 
         // Check for app updates (non-blocking, runs in parallel)
         Log.updateChecker.info("Scheduling update check from applicationDidFinishLaunching")
-        Task {
+        updateCheckTask = Task {
             await updateChecker.checkForUpdate()
             Log.updateChecker.info("Update check task completed — availableUpdate: \(self.updateChecker.availableUpdate?.version ?? "none")")
         }
@@ -229,6 +235,13 @@ final class WisprAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
             NSApplication.shared.terminate(nil)
         }
         onboardingWindow = nil
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        overlayObservationTask?.cancel()
+        hotkeyObservationTask?.cancel()
+        permissionMonitoringTask?.cancel()
+        updateCheckTask?.cancel()
     }
 
     // MARK: - Onboarding Window

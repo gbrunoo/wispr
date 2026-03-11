@@ -45,7 +45,9 @@ enum PreviewMocks {
     /// SettingsStore backed by an ephemeral UserDefaults suite.
     /// Doesn't read/write the app's real preferences.
     static func makeSettingsStore() -> SettingsStore {
-        let defaults = UserDefaults(suiteName: "com.wispr.preview.\(UUID().uuidString)")!
+        guard let defaults = UserDefaults(suiteName: "com.wispr.preview.\(UUID().uuidString)") else {
+            fatalError("Failed to create ephemeral UserDefaults for preview")
+        }
         return SettingsStore(defaults: defaults)
     }
 
