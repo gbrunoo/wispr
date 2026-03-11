@@ -28,6 +28,7 @@ final class SoundFeedbackService {
         guard settingsStore.soundFeedbackEnabled else { return }
 
         if let player = players[sound] {
+            player.stop()
             player.currentTime = 0
             player.play()
             return
