@@ -113,6 +113,15 @@ enum SFSymbols {
     /// Recording indicator for hotkey recorder.
     static let recordCircle = "record.circle"
 
+    /// Text output icon for after-transcription section.
+    static let textOutput = "text.badge.checkmark"
+
+    /// Bell icon for feedback section.
+    static let feedback = "bell"
+
+    /// Chevron up/down icon for menu disclosure.
+    static let chevronUpDown = "chevron.up.chevron.down"
+
     // MARK: - Model Status Icons
 
     /// Plain checkmark for active/completion states.

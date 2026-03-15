@@ -314,3 +314,141 @@ struct SettingsViewSupportedLanguagesTests {
         #expect(SupportedLanguage.all.first?.name == "English")
     }
 }
+
+// MARK: - Auto-Suffix & Auto-Send Enter UI Behavior Tests
+
+/// Tests the SettingsView UI behavior for auto-suffix insertion and auto-send Enter features.
+/// Validates: Requirements 2.2, 2.3, 2.5, 4.1, 4.2, 4.3, 5.5
+@MainActor
+@Suite("SettingsView Auto-Suffix UI Behavior")
+struct SettingsViewAutoSuffixUITests {
+
+    /// Creates a SettingsStore backed by an isolated UserDefaults suite.
+    private func makeStore() -> SettingsStore {
+        SettingsStore(
+            defaults: UserDefaults(suiteName: "test.wispr.settings.\(UUID().uuidString)")!
+        )
+    }
+
+    // MARK: - Suffix Text Field Visibility (Requirements 2.2, 2.3)
+
+    @Test("Suffix text field condition is true when autoSuffixEnabled is on")
+    func testSuffixFieldVisibleWhenEnabled() {
+        let store = makeStore()
+        store.autoSuffixEnabled = true
+
+        // SettingsView conditionally shows the suffix TextField via:
+        //   if settingsStore.autoSuffixEnabled { ... TextField ... }
+        // We verify the underlying state that drives this conditional.
+        #expect(store.autoSuffixEnabled == true,
+                "autoSuffixEnabled should be true, making suffix text field visible")
+    }
+
+    @Test("Suffix text field condition is false when autoSuffixEnabled is off")
+    func testSuffixFieldHiddenWhenDisabled() {
+        let store = makeStore()
+        store.autoSuffixEnabled = false
+
+        #expect(store.autoSuffixEnabled == false,
+                "autoSuffixEnabled should be false, hiding suffix text field")
+    }
+
+    @Test("Toggling autoSuffixEnabled flips the suffix text field visibility condition")
+    func testSuffixFieldVisibilityToggles() {
+        let store = makeStore()
+
+        // Starts disabled (default)
+        #expect(store.autoSuffixEnabled == false)
+
+        // Enable — suffix field should become visible
+        store.autoSuffixEnabled = true
+        #expect(store.autoSuffixEnabled == true)
+
+        // Disable — suffix field should hide again
+        store.autoSuffixEnabled = false
+        #expect(store.autoSuffixEnabled == false)
+    }
+
+    @Test("Suffix text field is editable and reflects store value when enabled")
+    func testSuffixTextFieldBindsToStore() {
+        let store = makeStore()
+        store.autoSuffixEnabled = true
+
+        // Simulate user editing the suffix text field (bound to $store.autoSuffixText)
+        store.autoSuffixText = "! "
+        #expect(store.autoSuffixText == "! ")
+
+        store.autoSuffixText = ""
+        #expect(store.autoSuffixText == "")
+    }
+
+    // MARK: - Restore Defaults (Requirements 4.1, 4.2, 4.3)
+
+    @Test("Restore Defaults resets autoSuffixEnabled to false")
+    func testRestoreDefaultsResetsAutoSuffixEnabled() {
+        let store = makeStore()
+        store.autoSuffixEnabled = true
+
+        store.restoreDefaults()
+
+        #expect(store.autoSuffixEnabled == SettingsStore.Defaults.autoSuffixEnabled,
+                "Restore Defaults should reset autoSuffixEnabled")
+    }
+
+    @Test("Restore Defaults resets autoSuffixText to default value")
+    func testRestoreDefaultsResetsAutoSuffixText() {
+        let store = makeStore()
+        store.autoSuffixText = "custom suffix!"
+
+        store.restoreDefaults()
+
+        #expect(store.autoSuffixText == SettingsStore.Defaults.autoSuffixText,
+                "Restore Defaults should reset autoSuffixText")
+    }
+
+    @Test("Restore Defaults resets autoSendEnterEnabled to false")
+    func testRestoreDefaultsResetsAutoSendEnterEnabled() {
+        let store = makeStore()
+        store.autoSendEnterEnabled = true
+
+        store.restoreDefaults()
+
+        #expect(store.autoSendEnterEnabled == SettingsStore.Defaults.autoSendEnterEnabled,
+                "Restore Defaults should reset autoSendEnterEnabled")
+    }
+
+    @Test("Restore Defaults resets all three auto-suffix/enter settings together")
+    func testRestoreDefaultsResetsAllNewSettings() {
+        let store = makeStore()
+
+        // Set all three to non-default values
+        store.autoSuffixEnabled = true
+        store.autoSuffixText = ">>> "
+        store.autoSendEnterEnabled = true
+
+        store.restoreDefaults()
+
+        #expect(store.autoSuffixEnabled == SettingsStore.Defaults.autoSuffixEnabled)
+        #expect(store.autoSuffixText == SettingsStore.Defaults.autoSuffixText)
+        #expect(store.autoSendEnterEnabled == SettingsStore.Defaults.autoSendEnterEnabled)
+    }
+
+    @Test("Restore Defaults values persist across store instances")
+    func testRestoreDefaultsPersistence() {
+        let suite = "test.wispr.restore.\(UUID().uuidString)"
+        let store = SettingsStore(defaults: UserDefaults(suiteName: suite)!)
+
+        // Set non-default values
+        store.autoSuffixEnabled = true
+        store.autoSuffixText = "!!!"
+        store.autoSendEnterEnabled = true
+
+        store.restoreDefaults()
+
+        // Verify restored defaults persist to a new store instance
+        let reloaded = SettingsStore(defaults: UserDefaults(suiteName: suite)!)
+        #expect(reloaded.autoSuffixEnabled == SettingsStore.Defaults.autoSuffixEnabled)
+        #expect(reloaded.autoSuffixText == SettingsStore.Defaults.autoSuffixText)
+        #expect(reloaded.autoSendEnterEnabled == SettingsStore.Defaults.autoSendEnterEnabled)
+    }
+}

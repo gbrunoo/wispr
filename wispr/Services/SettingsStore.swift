@@ -67,14 +67,33 @@ final class SettingsStore {
     /// When true, hotkey toggles recording on/off (press once to start, press again to stop).
     /// When false, uses push-to-talk (hold to record, release to stop).
     var handsFreeMode: Bool {
-        didSet { save() }
+        didSet { guard !isLoading else { return }; defaults.set(handsFreeMode, forKey: Keys.handsFreeMode) }
     }
 
     /// When true, plays short audio cues on recording start/stop.
     var soundFeedbackEnabled: Bool {
         didSet { guard !isLoading else { return }; defaults.set(soundFeedbackEnabled, forKey: Keys.soundFeedbackEnabled) }
     }
-    
+
+    // MARK: - Auto-Suffix Settings
+
+    /// When true, appends `autoSuffixText` to transcribed text before insertion.
+    var autoSuffixEnabled: Bool {
+        didSet { guard !isLoading else { return }; defaults.set(autoSuffixEnabled, forKey: Keys.autoSuffixEnabled) }
+    }
+
+    /// The suffix string appended to transcribed text when `autoSuffixEnabled` is true.
+    var autoSuffixText: String {
+        didSet { guard !isLoading else { return }; defaults.set(autoSuffixText, forKey: Keys.autoSuffixText) }
+    }
+
+    // MARK: - Auto-Send Enter Settings
+
+    /// When true, simulates an Enter/Return keystroke after text insertion.
+    var autoSendEnterEnabled: Bool {
+        didSet { guard !isLoading else { return }; defaults.set(autoSendEnterEnabled, forKey: Keys.autoSendEnterEnabled) }
+    }
+
     // MARK: - UserDefaults Keys
     private enum Keys {
         static let hotkeyKeyCode = "hotkeyKeyCode"
@@ -88,8 +107,32 @@ final class SettingsStore {
         static let onboardingLastStep = "onboardingLastStep"
         static let handsFreeMode = "handsFreeMode"
         static let soundFeedbackEnabled = "soundFeedbackEnabled"
+        static let autoSuffixEnabled = "autoSuffixEnabled"
+        static let autoSuffixText = "autoSuffixText"
+        static let autoSendEnterEnabled = "autoSendEnterEnabled"
     }
     
+    // MARK: - Default Values
+
+    /// Single source of truth for all setting defaults.
+    /// Referenced by `init`, `restoreDefaults()`, and tests.
+    enum Defaults {
+        static let hotkeyKeyCode: UInt32 = 49          // Space
+        static let hotkeyModifiers: UInt32 = 2048      // Option
+        static let selectedAudioDeviceUID: String? = nil
+        static let activeModelName: String = ModelInfo.KnownID.tiny
+        static let languageMode: TranscriptionLanguage = .autoDetect
+        static let showRecordingOverlay: Bool = true
+        static let launchAtLogin: Bool = false
+        static let onboardingCompleted: Bool = false
+        static let onboardingLastStep: Int = 0
+        static let handsFreeMode: Bool = false
+        static let soundFeedbackEnabled: Bool = false
+        static let autoSuffixEnabled: Bool = false
+        static let autoSuffixText: String = " "
+        static let autoSendEnterEnabled: Bool = false
+    }
+
     // MARK: - Dependencies
     private let defaults: UserDefaults
     private var isLoading = false
@@ -99,27 +142,53 @@ final class SettingsStore {
         self.defaults = defaults
         
         // Initialize with defaults
-        self.hotkeyKeyCode = 49  // Space
-        self.hotkeyModifiers = 2048  // Option
-        self.selectedAudioDeviceUID = nil
-        self.activeModelName = ModelInfo.KnownID.tiny
-        self.languageMode = .autoDetect
-        self.showRecordingOverlay = true
-        self.launchAtLogin = false
-        self.onboardingCompleted = false
-        self.onboardingLastStep = 0
-        self.handsFreeMode = false
-        self.soundFeedbackEnabled = false
+        self.hotkeyKeyCode = Defaults.hotkeyKeyCode
+        self.hotkeyModifiers = Defaults.hotkeyModifiers
+        self.selectedAudioDeviceUID = Defaults.selectedAudioDeviceUID
+        self.activeModelName = Defaults.activeModelName
+        self.languageMode = Defaults.languageMode
+        self.showRecordingOverlay = Defaults.showRecordingOverlay
+        self.launchAtLogin = Defaults.launchAtLogin
+        self.onboardingCompleted = Defaults.onboardingCompleted
+        self.onboardingLastStep = Defaults.onboardingLastStep
+        self.handsFreeMode = Defaults.handsFreeMode
+        self.soundFeedbackEnabled = Defaults.soundFeedbackEnabled
+        self.autoSuffixEnabled = Defaults.autoSuffixEnabled
+        self.autoSuffixText = Defaults.autoSuffixText
+        self.autoSendEnterEnabled = Defaults.autoSendEnterEnabled
 
         // Load persisted values
         load()
     }
+
+    // MARK: - Restore Defaults
+
+    /// Resets all user-facing settings to their default values.
+    /// This is the single source of truth — call this from SettingsView
+    /// instead of duplicating default values.
+    func restoreDefaults() {
+        hotkeyKeyCode = Defaults.hotkeyKeyCode
+        hotkeyModifiers = Defaults.hotkeyModifiers
+        selectedAudioDeviceUID = Defaults.selectedAudioDeviceUID
+        activeModelName = Defaults.activeModelName
+        languageMode = Defaults.languageMode
+        showRecordingOverlay = Defaults.showRecordingOverlay
+        launchAtLogin = Defaults.launchAtLogin
+        handsFreeMode = Defaults.handsFreeMode
+        soundFeedbackEnabled = Defaults.soundFeedbackEnabled
+        autoSuffixEnabled = Defaults.autoSuffixEnabled
+        autoSuffixText = Defaults.autoSuffixText
+        autoSendEnterEnabled = Defaults.autoSendEnterEnabled
+    }
     
     // MARK: - Persistence
+
+    /// Persists all current values to UserDefaults without forcing a disk flush.
+    /// Safe to call frequently — each `defaults.set` is cheap (in-memory update
+    /// that the system coalesces and writes to disk on its own schedule).
     func save() {
-        // Don't save while loading to avoid overwriting persisted values
         guard !isLoading else { return }
-        
+
         defaults.set(Int(hotkeyKeyCode), forKey: Keys.hotkeyKeyCode)
         defaults.set(Int(hotkeyModifiers), forKey: Keys.hotkeyModifiers)
         defaults.set(selectedAudioDeviceUID, forKey: Keys.selectedAudioDeviceUID)
@@ -129,11 +198,21 @@ final class SettingsStore {
         defaults.set(onboardingLastStep, forKey: Keys.onboardingLastStep)
         defaults.set(handsFreeMode, forKey: Keys.handsFreeMode)
         defaults.set(soundFeedbackEnabled, forKey: Keys.soundFeedbackEnabled)
+        defaults.set(autoSuffixEnabled, forKey: Keys.autoSuffixEnabled)
+        defaults.set(autoSuffixText, forKey: Keys.autoSuffixText)
+        defaults.set(autoSendEnterEnabled, forKey: Keys.autoSendEnterEnabled)
 
-        // Encode languageMode
         if let encoded = try? JSONEncoder().encode(languageMode) {
             defaults.set(encoded, forKey: Keys.languageMode)
         }
+    }
+
+    /// Persists all values and forces cfprefsd to flush to disk immediately.
+    /// Only call this at critical moments (app termination, onboarding completion)
+    /// where an abrupt process exit could lose in-memory changes.
+    func flush() {
+        save()
+        defaults.synchronize()
     }
     
     func load() {
@@ -180,6 +259,20 @@ final class SettingsStore {
 
         if defaults.object(forKey: Keys.soundFeedbackEnabled) != nil {
             self.soundFeedbackEnabled = defaults.bool(forKey: Keys.soundFeedbackEnabled)
+        }
+
+        // Load auto-suffix settings
+        if defaults.object(forKey: Keys.autoSuffixEnabled) != nil {
+            self.autoSuffixEnabled = defaults.bool(forKey: Keys.autoSuffixEnabled)
+        }
+
+        if let suffixText = defaults.string(forKey: Keys.autoSuffixText) {
+            self.autoSuffixText = suffixText
+        }
+
+        // Load auto-send Enter settings
+        if defaults.object(forKey: Keys.autoSendEnterEnabled) != nil {
+            self.autoSendEnterEnabled = defaults.bool(forKey: Keys.autoSendEnterEnabled)
         }
     }
     

@@ -12,6 +12,7 @@ private func castToAXUIElement(_ ref: CFTypeRef) -> AXUIElement? {
 @MainActor
 protocol TextInserting: Sendable {
     func insertText(_ text: String) async throws
+    func simulateEnterKey()
 }
 
 /// Service responsible for inserting transcribed text at the cursor position.
@@ -272,6 +273,34 @@ final class TextInsertionService: TextInserting {
         for (type, data) in contents {
             pasteboard.setData(data, forType: type)
         }
+    }
+    
+    /// Simulates an Enter/Return keystroke using CGEvent.
+    ///
+    /// Called by StateManager when `autoSendEnterEnabled` is true.
+    ///
+    /// **Validates**: Requirement 5.6
+    func simulateEnterKey() {
+        // keyCode 0x24 = Return/Enter
+        guard let keyDownEvent = CGEvent(
+            keyboardEventSource: nil,
+            virtualKey: 0x24,
+            keyDown: true
+        ) else {
+            return
+        }
+        
+        guard let keyUpEvent = CGEvent(
+            keyboardEventSource: nil,
+            virtualKey: 0x24,
+            keyDown: false
+        ) else {
+            return
+        }
+        
+        // Post events
+        keyDownEvent.post(tap: .cghidEventTap)
+        keyUpEvent.post(tap: .cghidEventTap)
     }
     
     /// Simulates a ⌘V keystroke using CGEvent.

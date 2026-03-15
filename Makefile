@@ -170,11 +170,17 @@ list-container: ## Inspect the sandbox container directory
 	fi
 
 list-prefs: ## Show current UserDefaults for the app
-	@defaults read $(BUNDLE_ID) 2>/dev/null || echo "No preferences found for $(BUNDLE_ID)."
+	@echo "— Standard (non-sandboxed) —"
+	@defaults read $(BUNDLE_ID) 2>/dev/null || echo "  (none)"
+	@echo ""
+	@echo "— Sandboxed (container) —"
+	@plutil -p "$(CONTAINER)/Library/Preferences/$(BUNDLE_ID).plist" 2>/dev/null || echo "  (none)"
 
 clean-prefs: ## Delete all UserDefaults for the app
 	@echo "Removing preferences for $(BUNDLE_ID) …"
 	@defaults delete $(BUNDLE_ID) 2>/dev/null || true
+	@rm -f "$(CONTAINER)/Library/Preferences/$(BUNDLE_ID).plist" 2>/dev/null || true
+	@killall cfprefsd 2>/dev/null || true
 	@echo "Done."
 
 reset-permissions: ## Reset microphone and accessibility permissions for the app

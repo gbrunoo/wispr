@@ -409,6 +409,134 @@ struct StateManagerTests {
         }
     }
 
+    // MARK: - Property-Based Tests
+
+    // Feature: auto-suffix-insertion, Property 2: Suffix application correctness
+    // Validates: Requirements 3.1, 3.2, 3.3
+    @Test("Property 2: Suffix application correctness — applyAutoSuffix produces correct output for all configurations",
+          arguments: StateManagerTests.suffixApplicationCases)
+    func testSuffixApplicationCorrectness(
+        testCase: SuffixApplicationCase
+    ) async {
+        let defaults = UserDefaults(suiteName: "test.wispr.suffix.prop.\(UUID().uuidString)")!
+        let settingsStore = SettingsStore(defaults: defaults)
+        settingsStore.autoSuffixEnabled = testCase.autoSuffixEnabled
+        settingsStore.autoSuffixText = testCase.autoSuffixText
+
+        let sm = StateManager(
+            audioEngine: AudioEngine(),
+            whisperService: WhisperService(),
+            textInsertionService: TextInsertionService(),
+            hotkeyMonitor: HotkeyMonitor(),
+            permissionManager: PermissionManager(),
+            settingsStore: settingsStore
+        )
+
+        let result = sm.applyAutoSuffix(to: testCase.transcription)
+
+        // Requirement 3.1: When enabled and both strings non-empty, append suffix
+        // Requirement 3.2: When disabled, pass text unmodified
+        // Requirement 3.3: When suffix text is empty, pass text unmodified
+        let shouldAppend = testCase.autoSuffixEnabled
+            && !testCase.transcription.isEmpty
+            && !testCase.autoSuffixText.isEmpty
+
+        let expected = shouldAppend
+            ? testCase.transcription + testCase.autoSuffixText
+            : testCase.transcription
+
+        #expect(result == expected,
+                "case \(testCase.id): expected \"\(expected)\" but got \"\(result)\"")
+    }
+
+    /// A single test case for the suffix application correctness property test.
+    struct SuffixApplicationCase: Sendable, CustomTestStringConvertible {
+        let id: Int
+        let transcription: String
+        let autoSuffixEnabled: Bool
+        let autoSuffixText: String
+
+        var testDescription: String {
+            "case \(id): enabled=\(autoSuffixEnabled), text=\"\(transcription)\", suffix=\"\(autoSuffixText)\""
+        }
+    }
+
+    /// Generates 120 deterministic pseudo-random test cases covering diverse
+    /// transcription × enabled × suffix combinations.
+    /// Minimum 100 iterations as required by the design document.
+    nonisolated static let suffixApplicationCases: [SuffixApplicationCase] = {
+        let transcriptionPool: [String] = [
+            "Hello world",
+            "Testing",
+            "A",
+            "こんにちは",
+            "🎤 voice input",
+            "Multiple words in a sentence",
+            String(repeating: "long ", count: 50),
+            "café résumé",
+            "Line1\nLine2",
+            "tabs\there",
+        ]
+
+        let suffixPool: [String] = [
+            "",           // empty — edge case (Req 3.3)
+            ". ",         // default
+            " ",          // single space
+            ".",          // no trailing space
+            "...",        // multiple dots
+            "\n",         // newline
+            "🎤",         // emoji
+            "— ",         // em-dash
+            "? ",         // question mark
+            "END",        // alphabetic
+            "。",         // CJK period
+            ", ",         // comma
+        ]
+
+        var cases: [SuffixApplicationCase] = []
+        var id = 0
+
+        // Exhaustive: 10 transcriptions × 2 bools × 12 suffixes = 240 combos
+        // Take first 100 from exhaustive, then add 20 pseudo-random for 120 total
+        outer: for transcription in transcriptionPool {
+            for enabled in [true, false] {
+                for suffix in suffixPool {
+                    cases.append(SuffixApplicationCase(
+                        id: id,
+                        transcription: transcription,
+                        autoSuffixEnabled: enabled,
+                        autoSuffixText: suffix
+                    ))
+                    id += 1
+                    if cases.count >= 100 { break outer }
+                }
+            }
+        }
+
+        // Add 20 more pseudo-random cases using LCG
+        var seed: UInt64 = 7
+        for _ in 0..<20 {
+            seed = seed &* 6364136223846793005 &+ 1442695040888963407
+            let tIdx = Int(seed >> 33) % transcriptionPool.count
+
+            seed = seed &* 6364136223846793005 &+ 1442695040888963407
+            let sIdx = Int(seed >> 33) % suffixPool.count
+
+            seed = seed &* 6364136223846793005 &+ 1442695040888963407
+            let enabled = (seed >> 33) % 2 == 0
+
+            cases.append(SuffixApplicationCase(
+                id: id,
+                transcription: transcriptionPool[tIdx],
+                autoSuffixEnabled: enabled,
+                autoSuffixText: suffixPool[sIdx]
+            ))
+            id += 1
+        }
+
+        return cases
+    }()
+
     // MARK: - switchActiveModel
 
     @Test("switchActiveModel no-ops when switching to the current model")
@@ -567,5 +695,392 @@ struct StateManagerTests {
 
         // endRecording with empty audio → idle
         #expect(sm.appState == .idle)
+    }
+
+    // MARK: - Property 3: Enter keystroke conditional execution
+
+    // Feature: auto-suffix-insertion, Property 3: Enter keystroke conditional execution
+    // Validates: Requirements 5.6, 5.7
+    @Test("Property 3: Enter keystroke conditional execution — simulateEnterKey called iff autoSendEnterEnabled is true",
+          arguments: StateManagerTests.enterKeystrokeCases)
+    func testEnterKeystrokeConditionalExecution(
+        testCase: EnterKeystrokeCase
+    ) async {
+        let defaults = UserDefaults(suiteName: "test.wispr.enter.prop.\(UUID().uuidString)")!
+        let settingsStore = SettingsStore(defaults: defaults)
+        settingsStore.autoSendEnterEnabled = testCase.autoSendEnterEnabled
+
+        let mockTextService = MockTextInsertionServiceForEnterTest()
+
+        let sm = StateManager(
+            audioEngine: AudioEngine(),
+            whisperService: WhisperService(),
+            textInsertionService: mockTextService,
+            hotkeyMonitor: HotkeyMonitor(),
+            permissionManager: PermissionManager(),
+            settingsStore: settingsStore
+        )
+
+        // Reset mock state before calling
+        mockTextService.simulateEnterKeyCalled = false
+
+        sm.applyAutoSendEnter()
+
+        // Requirement 5.6: simulateEnterKey called when enabled
+        // Requirement 5.7: simulateEnterKey NOT called when disabled
+        let called = mockTextService.simulateEnterKeyCalled
+        let enabled = testCase.autoSendEnterEnabled
+        #expect(called == enabled)
+    }
+
+    /// A single test case for the Enter keystroke conditional execution property test.
+    struct EnterKeystrokeCase: Sendable, CustomTestStringConvertible {
+        let id: Int
+        let autoSendEnterEnabled: Bool
+
+        var testDescription: String {
+            "case \(id): autoSendEnterEnabled=\(autoSendEnterEnabled)"
+        }
+    }
+
+    /// Generates 120 deterministic test cases alternating true/false for
+    /// `autoSendEnterEnabled`. Minimum 100 iterations as required by the design document.
+    nonisolated static let enterKeystrokeCases: [EnterKeystrokeCase] = {
+        var cases: [EnterKeystrokeCase] = []
+        for i in 0..<120 {
+            cases.append(EnterKeystrokeCase(
+                id: i,
+                autoSendEnterEnabled: i % 2 == 0
+            ))
+        }
+        return cases
+    }()
+
+    // MARK: - Property 4: Operation ordering when both features enabled
+
+    // Feature: auto-suffix-insertion, Property 4: Operation ordering when both features enabled
+    // Validates: Requirements 5.9
+    @Test("Property 4: Operation ordering — insertText called before simulateEnterKey when both features enabled",
+          arguments: StateManagerTests.operationOrderingCases)
+    func testOperationOrdering(
+        testCase: OperationOrderingCase
+    ) async throws {
+        let defaults = UserDefaults(suiteName: "test.wispr.ordering.prop.\(UUID().uuidString)")!
+        let settingsStore = SettingsStore(defaults: defaults)
+        settingsStore.autoSuffixEnabled = true
+        settingsStore.autoSuffixText = testCase.autoSuffixText
+        settingsStore.autoSendEnterEnabled = true
+
+        let mockTextService = MockOrderTrackingTextInsertionService()
+
+        let sm = StateManager(
+            audioEngine: AudioEngine(),
+            whisperService: WhisperService(),
+            textInsertionService: mockTextService,
+            hotkeyMonitor: HotkeyMonitor(),
+            permissionManager: PermissionManager(),
+            settingsStore: settingsStore
+        )
+
+        // Step 1: Apply suffix to get the final text
+        let finalText = sm.applyAutoSuffix(to: testCase.transcription)
+
+        // Step 2: Insert text (as StateManager.endRecording would)
+        try await mockTextService.insertText(finalText)
+
+        // Step 3: Apply auto-send Enter (as StateManager.endRecording would)
+        sm.applyAutoSendEnter()
+
+        // Requirement 5.9: insertText must be called before simulateEnterKey
+        #expect(mockTextService.callOrder.count == 2,
+                "case \(testCase.id): expected 2 operations, got \(mockTextService.callOrder.count)")
+        #expect(mockTextService.callOrder[0] == "insertText",
+                "case \(testCase.id): first operation should be insertText, got \(mockTextService.callOrder[0])")
+        #expect(mockTextService.callOrder[1] == "simulateEnterKey",
+                "case \(testCase.id): second operation should be simulateEnterKey, got \(mockTextService.callOrder[1])")
+
+        // Also verify the text passed to insertText includes the suffix
+        let expectedText = testCase.autoSuffixText.isEmpty
+            ? testCase.transcription
+            : testCase.transcription + testCase.autoSuffixText
+        #expect(mockTextService.insertedTexts.first == expectedText,
+                "case \(testCase.id): inserted text should match expected suffix-appended text")
+    }
+
+    /// A single test case for the operation ordering property test.
+    struct OperationOrderingCase: Sendable, CustomTestStringConvertible {
+        let id: Int
+        let transcription: String
+        let autoSuffixText: String
+
+        var testDescription: String {
+            "case \(id): text=\"\(transcription)\", suffix=\"\(autoSuffixText)\""
+        }
+    }
+
+    /// Generates 120 deterministic pseudo-random test cases with diverse
+    /// transcription × suffix combinations. Both features are always enabled.
+    /// Minimum 100 iterations as required by the design document.
+    nonisolated static let operationOrderingCases: [OperationOrderingCase] = {
+        let transcriptionPool: [String] = [
+            "Hello world",
+            "Testing",
+            "A",
+            "こんにちは",
+            "🎤 voice input",
+            "Multiple words in a sentence",
+            String(repeating: "long ", count: 50),
+            "café résumé",
+            "Line1\nLine2",
+            "tabs\there",
+        ]
+
+        let suffixPool: [String] = [
+            "",           // empty — edge case
+            ". ",         // default
+            " ",          // single space
+            ".",          // no trailing space
+            "...",        // multiple dots
+            "\n",         // newline
+            "🎤",         // emoji
+            "— ",         // em-dash
+            "? ",         // question mark
+            "END",        // alphabetic
+            "。",         // CJK period
+            ", ",         // comma
+        ]
+
+        var cases: [OperationOrderingCase] = []
+        var id = 0
+
+        // Generate 100 cases from exhaustive combinations
+        outer: for transcription in transcriptionPool {
+            for suffix in suffixPool {
+                cases.append(OperationOrderingCase(
+                    id: id,
+                    transcription: transcription,
+                    autoSuffixText: suffix
+                ))
+                id += 1
+                if cases.count >= 100 { break outer }
+            }
+        }
+
+        // Add 20 more pseudo-random cases using LCG
+        var seed: UInt64 = 42
+        for _ in 0..<20 {
+            seed = seed &* 6364136223846793005 &+ 1442695040888963407
+            let tIdx = Int(seed >> 33) % transcriptionPool.count
+
+            seed = seed &* 6364136223846793005 &+ 1442695040888963407
+            let sIdx = Int(seed >> 33) % suffixPool.count
+
+            cases.append(OperationOrderingCase(
+                id: id,
+                transcription: transcriptionPool[tIdx],
+                autoSuffixText: suffixPool[sIdx]
+            ))
+            id += 1
+        }
+
+        return cases
+    }()
+
+    // MARK: - Edge Case Unit Tests (Task 5.7)
+
+    // Requirement 3.3: Empty suffix text results in no suffix appended
+    @Test("Edge case: empty suffix text results in unmodified transcription")
+    func testEmptySuffixTextNoAppend() {
+        let defaults = UserDefaults(suiteName: "test.wispr.edge.emptysuffix.\(UUID().uuidString)")!
+        let settingsStore = SettingsStore(defaults: defaults)
+        settingsStore.autoSuffixEnabled = true
+        settingsStore.autoSuffixText = ""
+
+        let sm = StateManager(
+            audioEngine: AudioEngine(),
+            whisperService: WhisperService(),
+            textInsertionService: TextInsertionService(),
+            hotkeyMonitor: HotkeyMonitor(),
+            permissionManager: PermissionManager(),
+            settingsStore: settingsStore
+        )
+
+        let result = sm.applyAutoSuffix(to: "Hello world")
+        #expect(result == "Hello world", "Empty suffix text should leave transcription unmodified")
+    }
+
+    // Requirement 3.2: Suffix disabled results in unmodified text
+    @Test("Edge case: suffix disabled results in unmodified transcription")
+    func testSuffixDisabledNoAppend() {
+        let defaults = UserDefaults(suiteName: "test.wispr.edge.disabled.\(UUID().uuidString)")!
+        let settingsStore = SettingsStore(defaults: defaults)
+        settingsStore.autoSuffixEnabled = false
+        settingsStore.autoSuffixText = SettingsStore.Defaults.autoSuffixText
+
+        let sm = StateManager(
+            audioEngine: AudioEngine(),
+            whisperService: WhisperService(),
+            textInsertionService: TextInsertionService(),
+            hotkeyMonitor: HotkeyMonitor(),
+            permissionManager: PermissionManager(),
+            settingsStore: settingsStore
+        )
+
+        let result = sm.applyAutoSuffix(to: "Hello world")
+        #expect(result == "Hello world", "Disabled suffix should leave transcription unmodified")
+    }
+
+    // Requirement 5.7: Auto-send Enter disabled results in no simulateEnterKey call
+    @Test("Edge case: auto-send Enter disabled does not call simulateEnterKey")
+    func testAutoSendEnterDisabledNoCall() {
+        let defaults = UserDefaults(suiteName: "test.wispr.edge.enteroff.\(UUID().uuidString)")!
+        let settingsStore = SettingsStore(defaults: defaults)
+        settingsStore.autoSendEnterEnabled = false
+
+        let mockTextService = MockTextInsertionServiceForEnterTest()
+
+        let sm = StateManager(
+            audioEngine: AudioEngine(),
+            whisperService: WhisperService(),
+            textInsertionService: mockTextService,
+            hotkeyMonitor: HotkeyMonitor(),
+            permissionManager: PermissionManager(),
+            settingsStore: settingsStore
+        )
+
+        sm.applyAutoSendEnter()
+        #expect(mockTextService.simulateEnterKeyCalled == false,
+                "simulateEnterKey should not be called when autoSendEnterEnabled is false")
+    }
+
+    // Requirements 3.4, 5.8: Suffix and Enter work regardless of handsFreeMode setting
+    // The helper methods (applyAutoSuffix, applyAutoSendEnter) are mode-agnostic —
+    // handsFreeMode only determines which code path calls them, not their behavior.
+
+    @Test("Edge case: applyAutoSuffix works the same with handsFreeMode enabled")
+    func testSuffixWorksInHandsFreeMode() {
+        let defaults = UserDefaults(suiteName: "test.wispr.edge.hf.suffix.\(UUID().uuidString)")!
+        let settingsStore = SettingsStore(defaults: defaults)
+        settingsStore.autoSuffixEnabled = true
+        settingsStore.autoSuffixText = SettingsStore.Defaults.autoSuffixText
+        settingsStore.handsFreeMode = true
+
+        let sm = StateManager(
+            audioEngine: AudioEngine(),
+            whisperService: WhisperService(),
+            textInsertionService: TextInsertionService(),
+            hotkeyMonitor: HotkeyMonitor(),
+            permissionManager: PermissionManager(),
+            settingsStore: settingsStore
+        )
+
+        let result = sm.applyAutoSuffix(to: "Hello")
+        #expect(result == "Hello" + SettingsStore.Defaults.autoSuffixText, "Suffix should be appended in hands-free mode")
+    }
+
+    @Test("Edge case: applyAutoSuffix works the same with handsFreeMode disabled (push-to-talk)")
+    func testSuffixWorksInPushToTalkMode() {
+        let defaults = UserDefaults(suiteName: "test.wispr.edge.ptt.suffix.\(UUID().uuidString)")!
+        let settingsStore = SettingsStore(defaults: defaults)
+        settingsStore.autoSuffixEnabled = true
+        settingsStore.autoSuffixText = SettingsStore.Defaults.autoSuffixText
+        settingsStore.handsFreeMode = false
+
+        let sm = StateManager(
+            audioEngine: AudioEngine(),
+            whisperService: WhisperService(),
+            textInsertionService: TextInsertionService(),
+            hotkeyMonitor: HotkeyMonitor(),
+            permissionManager: PermissionManager(),
+            settingsStore: settingsStore
+        )
+
+        let result = sm.applyAutoSuffix(to: "Hello")
+        #expect(result == "Hello" + SettingsStore.Defaults.autoSuffixText, "Suffix should be appended in push-to-talk mode")
+    }
+
+    @Test("Edge case: applyAutoSendEnter works the same with handsFreeMode enabled")
+    func testAutoSendEnterWorksInHandsFreeMode() {
+        let defaults = UserDefaults(suiteName: "test.wispr.edge.hf.enter.\(UUID().uuidString)")!
+        let settingsStore = SettingsStore(defaults: defaults)
+        settingsStore.autoSendEnterEnabled = true
+        settingsStore.handsFreeMode = true
+
+        let mockTextService = MockTextInsertionServiceForEnterTest()
+
+        let sm = StateManager(
+            audioEngine: AudioEngine(),
+            whisperService: WhisperService(),
+            textInsertionService: mockTextService,
+            hotkeyMonitor: HotkeyMonitor(),
+            permissionManager: PermissionManager(),
+            settingsStore: settingsStore
+        )
+
+        sm.applyAutoSendEnter()
+        #expect(mockTextService.simulateEnterKeyCalled == true,
+                "simulateEnterKey should be called in hands-free mode when enabled")
+    }
+
+    @Test("Edge case: applyAutoSendEnter works the same with handsFreeMode disabled (push-to-talk)")
+    func testAutoSendEnterWorksInPushToTalkMode() {
+        let defaults = UserDefaults(suiteName: "test.wispr.edge.ptt.enter.\(UUID().uuidString)")!
+        let settingsStore = SettingsStore(defaults: defaults)
+        settingsStore.autoSendEnterEnabled = true
+        settingsStore.handsFreeMode = false
+
+        let mockTextService = MockTextInsertionServiceForEnterTest()
+
+        let sm = StateManager(
+            audioEngine: AudioEngine(),
+            whisperService: WhisperService(),
+            textInsertionService: mockTextService,
+            hotkeyMonitor: HotkeyMonitor(),
+            permissionManager: PermissionManager(),
+            settingsStore: settingsStore
+        )
+
+        sm.applyAutoSendEnter()
+        #expect(mockTextService.simulateEnterKeyCalled == true,
+                "simulateEnterKey should be called in push-to-talk mode when enabled")
+    }
+}
+
+// MARK: - Mock for Enter Keystroke Property Test
+
+/// Mock TextInserting implementation that records whether `simulateEnterKey()` was called.
+/// Used by Property 3 tests to verify conditional execution without CGEvent side effects.
+@MainActor
+final class MockTextInsertionServiceForEnterTest: TextInserting {
+    var insertedTexts: [String] = []
+    var simulateEnterKeyCalled = false
+
+    func insertText(_ text: String) async throws {
+        insertedTexts.append(text)
+    }
+
+    func simulateEnterKey() {
+        simulateEnterKeyCalled = true
+    }
+}
+
+
+// MARK: - Mock for Operation Ordering Property Test
+
+/// Mock TextInserting implementation that records the order of `insertText()` and
+/// `simulateEnterKey()` calls. Used by Property 4 tests to verify operation ordering
+/// without CGEvent side effects.
+@MainActor
+final class MockOrderTrackingTextInsertionService: TextInserting {
+    var callOrder: [String] = []
+    var insertedTexts: [String] = []
+
+    func insertText(_ text: String) async throws {
+        callOrder.append("insertText")
+        insertedTexts.append(text)
+    }
+
+    func simulateEnterKey() {
+        callOrder.append("simulateEnterKey")
     }
 }

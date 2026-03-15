@@ -43,7 +43,7 @@ final class StateManager {
 
     private let audioEngine: AudioEngine
     private let whisperService: any TranscriptionEngine
-    private let textInsertionService: TextInsertionService
+    private let textInsertionService: any TextInserting
     private let hotkeyMonitor: HotkeyMonitor
     private let permissionManager: PermissionManager
     private let settingsStore: SettingsStore
@@ -72,7 +72,7 @@ final class StateManager {
     init(
         audioEngine: AudioEngine,
         whisperService: any TranscriptionEngine,
-        textInsertionService: TextInsertionService,
+        textInsertionService: any TextInserting,
         hotkeyMonitor: HotkeyMonitor,
         permissionManager: PermissionManager,
         settingsStore: SettingsStore
@@ -216,29 +216,7 @@ final class StateManager {
 
                 self.soundFeedback.play(.recordingStopped)
 
-                guard !finalResult.text.isEmpty else {
-                    await self.resetToIdle()
-                    return
-                }
-
-                do {
-                    try await self.textInsertionService.insertText(finalResult.text)
-                    NSAccessibility.post(
-                        element: NSApp as Any,
-                        notification: .announcementRequested,
-                        userInfo: [.announcement: "Text inserted"]
-                    )
-                    await self.resetToIdle()
-                } catch {
-                    let pasteboard = NSPasteboard.general
-                    pasteboard.clearContents()
-                    pasteboard.setString(finalResult.text, forType: .string)
-                    await self.handleError(
-                        .textInsertionFailed(
-                            "Text insertion failed. The transcribed text has been copied to your clipboard for manual pasting.."
-                        )
-                    )
-                }
+                await self.insertTranscribedText(finalResult.text)
             } catch {
                 guard !Task.isCancelled else { return }
                 Log.stateManager.warning("EOU monitoring failed: \(error.localizedDescription)")
@@ -250,6 +228,72 @@ final class StateManager {
     private func cancelEouMonitoring() {
         eouMonitoringTask?.cancel()
         eouMonitoringTask = nil
+    }
+
+    // MARK: - Auto-Suffix & Auto-Send Helpers
+
+    /// Applies optional suffix to transcribed text based on settings.
+    ///
+    /// Returns `text + autoSuffixText` when the feature is enabled and both
+    /// strings are non-empty; otherwise returns the original text unchanged.
+    ///
+    /// **Validates**: Requirements 3.1, 3.2, 3.3
+    func applyAutoSuffix(to text: String) -> String {
+        guard settingsStore.autoSuffixEnabled,
+              !text.isEmpty,
+              !settingsStore.autoSuffixText.isEmpty else {
+            return text
+        }
+        return text + settingsStore.autoSuffixText
+    }
+
+    /// Simulates Enter keystroke if auto-send is enabled.
+    ///
+    /// **Validates**: Requirements 5.6, 5.7
+    func applyAutoSendEnter() {
+        guard settingsStore.autoSendEnterEnabled else { return }
+        textInsertionService.simulateEnterKey()
+    }
+
+    // MARK: - Post-Transcription Pipeline
+
+    /// Shared post-transcription pipeline: applies suffix, inserts text,
+    /// optionally sends Enter, announces to VoiceOver, and resets to idle.
+    ///
+    /// On insertion failure, copies the text to the clipboard as a fallback.
+    ///
+    /// Called by both `endRecording()` and the EOU handler to avoid duplication.
+    ///
+    /// **Validates**: Requirements 3.1, 3.2, 3.3, 3.4, 4.1, 4.3, 4.4, 5.6, 5.7, 5.9
+    func insertTranscribedText(_ text: String) async {
+        guard !text.isEmpty else {
+            await resetToIdle()
+            return
+        }
+
+        let finalText = applyAutoSuffix(to: text)
+
+        do {
+            try await textInsertionService.insertText(finalText)
+
+            applyAutoSendEnter()
+
+            NSAccessibility.post(
+                element: NSApp as Any,
+                notification: .announcementRequested,
+                userInfo: [.announcement: "Text inserted"]
+            )
+            await resetToIdle()
+        } catch {
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(finalText, forType: .string)
+            await handleError(
+                .textInsertionFailed(
+                    "Text insertion failed. The transcribed text has been copied to your clipboard for manual pasting."
+                )
+            )
+        }
     }
 
     // MARK: - State Machine
@@ -399,37 +443,7 @@ final class StateManager {
             Log.stateManager.debug("endRecording — transcription: \"\(preview, privacy: .private)\" (len=\(result.text.count))")
             #endif
 
-            // Requirement 3.4: Empty transcription returns to idle without inserting
-            guard !result.text.isEmpty else {
-                await resetToIdle()
-                return
-            }
-
-            // Requirement 4.1, 4.3: Insert transcribed text
-            do {
-                try await textInsertionService.insertText(result.text)
-                Log.stateManager.debug("endRecording — text inserted successfully")
-            } catch {
-                // Requirement 4.4: On insertion failure, retain text on pasteboard and notify
-                let pasteboard = NSPasteboard.general
-                pasteboard.clearContents()
-                pasteboard.setString(result.text, forType: .string)
-                await handleError(
-                    .textInsertionFailed(
-                        "Text insertion failed. The transcribed text has been copied to your clipboard for manual pasting."
-                    )
-                )
-                return
-            }
-
-            // Requirement 4.3: Transition to idle on success
-            // Requirement 17.3, 17.11: Announce text insertion to assistive technologies
-            NSAccessibility.post(
-                element: NSApp as Any,
-                notification: .announcementRequested,
-                userInfo: [.announcement: "Text inserted"]
-            )
-            await resetToIdle()
+            await insertTranscribedText(result.text)
 
         } catch WisprError.emptyTranscription {
             // Requirement 3.4: Empty transcription — notify user and return to idle

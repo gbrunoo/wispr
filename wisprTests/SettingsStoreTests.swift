@@ -277,6 +277,121 @@ struct SettingsStoreTests {
         #expect(newStore.soundFeedbackEnabled == true, "soundFeedbackEnabled should persist")
     }
 
+    // MARK: - Property-Based Tests
+
+    // Feature: auto-suffix-insertion, Property 1: Settings persistence round-trip
+    // Validates: Requirements 1.3, 1.4, 5.2
+    @Test("Property 1: Settings persistence round-trip — auto-suffix and auto-send Enter values survive a write→reload cycle",
+          arguments: SettingsStoreTests.settingsRoundTripCases)
+    func testSettingsPersistenceRoundTrip(
+        testCase: SettingsRoundTripCase
+    ) async {
+        let defaults = createTestDefaults()
+        let store = SettingsStore(defaults: defaults)
+
+        // Write random values
+        store.autoSuffixEnabled = testCase.autoSuffixEnabled
+        store.autoSuffixText = testCase.autoSuffixText
+        store.autoSendEnterEnabled = testCase.autoSendEnterEnabled
+
+        // Create a fresh instance from the same UserDefaults
+        let reloaded = SettingsStore(defaults: defaults)
+
+        #expect(reloaded.autoSuffixEnabled == testCase.autoSuffixEnabled,
+                "autoSuffixEnabled should survive round-trip (iteration \(testCase.id))")
+        #expect(reloaded.autoSuffixText == testCase.autoSuffixText,
+                "autoSuffixText should survive round-trip (iteration \(testCase.id))")
+        #expect(reloaded.autoSendEnterEnabled == testCase.autoSendEnterEnabled,
+                "autoSendEnterEnabled should survive round-trip (iteration \(testCase.id))")
+    }
+
+    /// A single test case for the settings persistence round-trip property test.
+    struct SettingsRoundTripCase: Sendable, CustomTestStringConvertible {
+        let id: Int
+        let autoSuffixEnabled: Bool
+        let autoSendEnterEnabled: Bool
+        let autoSuffixText: String
+
+        var testDescription: String {
+            "case \(id): enabled=\(autoSuffixEnabled), enter=\(autoSendEnterEnabled), text=\"\(autoSuffixText)\""
+        }
+    }
+
+    /// Generates 120 deterministic pseudo-random test cases covering diverse
+    /// Bool × Bool × String combinations for the round-trip property test.
+    /// Minimum 100 iterations as required by the design document.
+    nonisolated static let settingsRoundTripCases: [SettingsRoundTripCase] = {
+        // Curated suffix strings that exercise interesting edge cases:
+        // empty, whitespace-only, default value, unicode, long strings, special chars
+        let suffixPool: [String] = [
+            "",                     // empty string edge case
+            ". ",                   // period + space
+            " ",                    // single space
+            ".",                    // no trailing space
+            "...",                  // multiple dots
+            "\n",                   // newline
+            "\t",                   // tab
+            "🎤",                   // emoji
+            "— ",                   // em-dash + space
+            "? ",                   // question mark
+            "! ",                   // exclamation
+            "; ",                   // semicolon
+            ", ",                   // comma
+            "END",                  // alphabetic
+            "  ",                   // double space
+            "。",                   // CJK period
+            "\r\n",                 // CRLF
+            "abc123!@#",           // mixed alphanumeric + symbols
+            String(repeating: "x", count: 200), // long string
+            "café résumé naïve",   // accented characters
+        ]
+
+        var cases: [SettingsRoundTripCase] = []
+        var id = 0
+
+        // Exhaustive Bool × Bool = 4 combos, cycled across all suffix strings
+        let boolCombos: [(Bool, Bool)] = [
+            (false, false), (false, true), (true, false), (true, true)
+        ]
+
+        // First pass: 4 bool combos × 20 strings = 80 cases
+        for combo in boolCombos {
+            for suffix in suffixPool {
+                cases.append(SettingsRoundTripCase(
+                    id: id,
+                    autoSuffixEnabled: combo.0,
+                    autoSendEnterEnabled: combo.1,
+                    autoSuffixText: suffix
+                ))
+                id += 1
+            }
+        }
+
+        // Second pass: 40 more cases with seeded pseudo-random selection to reach 120
+        // Uses a simple LCG for deterministic reproducibility
+        var seed: UInt64 = 42
+        for _ in 0..<40 {
+            seed = seed &* 6364136223846793005 &+ 1442695040888963407
+            let suffixIndex = Int(seed >> 33) % suffixPool.count
+
+            seed = seed &* 6364136223846793005 &+ 1442695040888963407
+            let enabledBit = (seed >> 33) % 2 == 0
+
+            seed = seed &* 6364136223846793005 &+ 1442695040888963407
+            let enterBit = (seed >> 33) % 2 == 0
+
+            cases.append(SettingsRoundTripCase(
+                id: id,
+                autoSuffixEnabled: enabledBit,
+                autoSendEnterEnabled: enterBit,
+                autoSuffixText: suffixPool[suffixIndex]
+            ))
+            id += 1
+        }
+
+        return cases
+    }()
+
     @Test("SettingsStore handles multiple rapid changes")
     func testRapidChanges() async {
         let defaults = createTestDefaults()

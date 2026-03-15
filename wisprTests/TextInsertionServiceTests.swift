@@ -18,12 +18,17 @@ import AppKit
 final class MockTextInsertionService: TextInserting {
     var insertedTexts: [String] = []
     var shouldThrow: WisprError?
+    var simulateEnterKeyCalled = false
 
     func insertText(_ text: String) async throws {
         if let error = shouldThrow {
             throw error
         }
         insertedTexts.append(text)
+    }
+
+    func simulateEnterKey() {
+        simulateEnterKeyCalled = true
     }
 }
 
