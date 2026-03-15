@@ -216,36 +216,7 @@ final class StateManager {
 
                 self.soundFeedback.play(.recordingStopped)
 
-                guard !finalResult.text.isEmpty else {
-                    await self.resetToIdle()
-                    return
-                }
-
-                // Requirement 3.1, 3.2, 3.3, 3.4: Apply optional suffix before insertion
-                let finalText = self.applyAutoSuffix(to: finalResult.text)
-
-                do {
-                    try await self.textInsertionService.insertText(finalText)
-
-                    // Requirement 5.6, 5.8, 5.9: Simulate Enter after successful insertion
-                    self.applyAutoSendEnter()
-
-                    NSAccessibility.post(
-                        element: NSApp as Any,
-                        notification: .announcementRequested,
-                        userInfo: [.announcement: "Text inserted"]
-                    )
-                    await self.resetToIdle()
-                } catch {
-                    let pasteboard = NSPasteboard.general
-                    pasteboard.clearContents()
-                    pasteboard.setString(finalText, forType: .string)
-                    await self.handleError(
-                        .textInsertionFailed(
-                            "Text insertion failed. The transcribed text has been copied to your clipboard for manual pasting.."
-                        )
-                    )
-                }
+                await self.insertTranscribedText(finalResult.text)
             } catch {
                 guard !Task.isCancelled else { return }
                 Log.stateManager.warning("EOU monitoring failed: \(error.localizedDescription)")
@@ -282,6 +253,47 @@ final class StateManager {
     func applyAutoSendEnter() {
         guard settingsStore.autoSendEnterEnabled else { return }
         textInsertionService.simulateEnterKey()
+    }
+
+    // MARK: - Post-Transcription Pipeline
+
+    /// Shared post-transcription pipeline: applies suffix, inserts text,
+    /// optionally sends Enter, announces to VoiceOver, and resets to idle.
+    ///
+    /// On insertion failure, copies the text to the clipboard as a fallback.
+    ///
+    /// Called by both `endRecording()` and the EOU handler to avoid duplication.
+    ///
+    /// **Validates**: Requirements 3.1, 3.2, 3.3, 3.4, 4.1, 4.3, 4.4, 5.6, 5.7, 5.9
+    func insertTranscribedText(_ text: String) async {
+        guard !text.isEmpty else {
+            await resetToIdle()
+            return
+        }
+
+        let finalText = applyAutoSuffix(to: text)
+
+        do {
+            try await textInsertionService.insertText(finalText)
+
+            applyAutoSendEnter()
+
+            NSAccessibility.post(
+                element: NSApp as Any,
+                notification: .announcementRequested,
+                userInfo: [.announcement: "Text inserted"]
+            )
+            await resetToIdle()
+        } catch {
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(finalText, forType: .string)
+            await handleError(
+                .textInsertionFailed(
+                    "Text insertion failed. The transcribed text has been copied to your clipboard for manual pasting."
+                )
+            )
+        }
     }
 
     // MARK: - State Machine
@@ -431,43 +443,7 @@ final class StateManager {
             Log.stateManager.debug("endRecording — transcription: \"\(preview, privacy: .private)\" (len=\(result.text.count))")
             #endif
 
-            // Requirement 3.4: Empty transcription returns to idle without inserting
-            guard !result.text.isEmpty else {
-                await resetToIdle()
-                return
-            }
-
-            // Requirement 3.1, 3.2, 3.3: Apply optional suffix before insertion
-            let finalText = applyAutoSuffix(to: result.text)
-
-            // Requirement 4.1, 4.3: Insert transcribed text (with suffix if enabled)
-            do {
-                try await textInsertionService.insertText(finalText)
-                Log.stateManager.debug("endRecording — text inserted successfully")
-
-                // Requirement 5.6, 5.7, 5.9: Simulate Enter after successful insertion
-                applyAutoSendEnter()
-            } catch {
-                // Requirement 4.4: On insertion failure, retain text on pasteboard and notify
-                let pasteboard = NSPasteboard.general
-                pasteboard.clearContents()
-                pasteboard.setString(finalText, forType: .string)
-                await handleError(
-                    .textInsertionFailed(
-                        "Text insertion failed. The transcribed text has been copied to your clipboard for manual pasting."
-                    )
-                )
-                return
-            }
-
-            // Requirement 4.3: Transition to idle on success
-            // Requirement 17.3, 17.11: Announce text insertion to assistive technologies
-            NSAccessibility.post(
-                element: NSApp as Any,
-                notification: .announcementRequested,
-                userInfo: [.announcement: "Text inserted"]
-            )
-            await resetToIdle()
+            await insertTranscribedText(result.text)
 
         } catch WisprError.emptyTranscription {
             // Requirement 3.4: Empty transcription — notify user and return to idle
