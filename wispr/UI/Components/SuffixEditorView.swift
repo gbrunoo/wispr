@@ -94,6 +94,7 @@ struct SuffixEditorView: View {
             switch char {
             case " ":  parts.append("space")
             case "\n": parts.append("newline")
+            case "\r": parts.append("newline")
             case "\t": parts.append("tab")
             default:   parts.append(String(char))
             }
