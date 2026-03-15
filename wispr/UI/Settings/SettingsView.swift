@@ -2,8 +2,8 @@
 //  SettingsView.swift
 //  wispr
 //
-//  SwiftUI settings view with sections for Hotkey Configuration,
-//  Audio Device, Whisper Model, Language, and General.
+//  SwiftUI settings view with sections for Shortcut, Audio Device,
+//  Recognition, After Transcription, Feedback, and General.
 //
 
 import SwiftUI
@@ -60,23 +60,16 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            hotkeySection
+            shortcutSection
             audioDeviceSection
-            whisperModelSection
-            languageSection
+            recognitionSection
+            afterTranscriptionSection
+            feedbackSection
             generalSection
-
-            Section {
-                Button("Restore Defaults") {
-                    showRestoreDefaultsAlert = true
-                }
-                .accessibilityHint("Resets all settings to their original values")
-            }
         }
         .formStyle(.grouped)
-        .scrollDisabled(true)
         .frame(width: 520)
-        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxHeight: 600)
         .liquidGlassPanel()
         .alert("Restore Defaults?", isPresented: $showRestoreDefaultsAlert) {
             Button("Restore", role: .destructive, action: restoreDefaults)
@@ -91,9 +84,9 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - Hotkey Configuration Section
+    // MARK: - Shortcut Section
 
-    private var hotkeySection: some View {
+    private var shortcutSection: some View {
         Section {
             LabeledContent("Shortcut") {
                 HotkeyRecorderView(
@@ -114,9 +107,16 @@ struct SettingsView: View {
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
+            @Bindable var store = settingsStore
+            Toggle("Hands-Free Mode", isOn: $store.handsFreeMode)
+                .accessibilityHint(
+                    "When enabled, press the hotkey once to start recording and again to stop. " +
+                    "When disabled, hold the hotkey to record."
+                )
+
         } header: {
             SectionHeader(
-                title: "Hotkey Configuration",
+                title: "Shortcut",
                 systemImage: SFSymbols.keyboard,
                 tint: .orange
             )
@@ -152,13 +152,13 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - Speech Recognition Section
+    // MARK: - Recognition Section
 
     private var availableModels: [ModelInfo] {
         whisperModels.filter { $0.status == .downloaded || $0.status == .active }
     }
 
-    private var whisperModelSection: some View {
+    private var recognitionSection: some View {
         Section {
             if availableModels.isEmpty {
                 Text("No models downloaded")
@@ -193,7 +193,6 @@ struct SettingsView: View {
                     do {
                         try await stateManager.switchActiveModel(to: modelId)
                     } catch {
-                        // Revert picker to the actual active model on failure
                         selectedModelId = settingsStore.activeModelName
                     }
                     await loadWhisperModels()
@@ -205,43 +204,6 @@ struct SettingsView: View {
                 }
             }
 
-            @Bindable var store = settingsStore
-            Toggle("Hands-Free Mode", isOn: $store.handsFreeMode)
-                .accessibilityHint(
-                    "When enabled, press the hotkey once to start recording and again to stop. " +
-                    "When disabled, hold the hotkey to record."
-                )
-
-            Toggle("Sound Feedback", isOn: $store.soundFeedbackEnabled)
-                .accessibilityHint("When enabled, plays audio cues when recording starts and stops")
-
-            Toggle("Show Recording Overlay", isOn: $store.showRecordingOverlay)
-                .accessibilityHint("When enabled, a floating overlay appears while recording")
-
-            Toggle("Auto-Insert Suffix", isOn: $store.autoSuffixEnabled)
-                .accessibilityHint("When enabled, appends a suffix to transcribed text")
-
-            if settingsStore.autoSuffixEnabled {
-                LabeledContent("Suffix") {
-                    SuffixEditorView(suffixText: $store.autoSuffixText)
-                }
-            }
-
-            Toggle("Auto-Send Enter", isOn: $store.autoSendEnterEnabled)
-                .accessibilityHint("When enabled, simulates pressing Enter after text insertion")
-        } header: {
-            SectionHeader(
-                title: "Speech Recognition",
-                systemImage: theme.actionSymbol(.model),
-                tint: .purple
-            )
-        }
-    }
-
-    // MARK: - Language Section
-
-    private var languageSection: some View {
-        Section {
             Toggle("Auto-Detect Language", isOn: autoDetectBinding)
                 .accessibilityHint("When enabled, Wispr automatically detects the spoken language")
 
@@ -258,12 +220,57 @@ struct SettingsView: View {
             }
         } header: {
             SectionHeader(
-                title: "Language",
-                systemImage: theme.actionSymbol(.language),
-                tint: .green
+                title: "Recognition",
+                systemImage: theme.actionSymbol(.model),
+                tint: .purple
             )
         }
         .motionRespectingAnimation(value: settingsStore.languageMode.isAutoDetect)
+    }
+
+    // MARK: - After Transcription Section
+
+    private var afterTranscriptionSection: some View {
+        Section {
+            @Bindable var store = settingsStore
+            Toggle("Auto-Insert Suffix", isOn: $store.autoSuffixEnabled)
+                .accessibilityHint("When enabled, appends a suffix to transcribed text")
+
+            if settingsStore.autoSuffixEnabled {
+                LabeledContent("Suffix") {
+                    SuffixEditorView(suffixText: $store.autoSuffixText)
+                }
+            }
+
+            Toggle("Auto-Send Enter", isOn: $store.autoSendEnterEnabled)
+                .accessibilityHint("When enabled, simulates pressing Enter after text insertion")
+        } header: {
+            SectionHeader(
+                title: "After Transcription",
+                systemImage: "text.badge.checkmark",
+                tint: .teal
+            )
+        }
+        .motionRespectingAnimation(value: settingsStore.autoSuffixEnabled)
+    }
+
+    // MARK: - Feedback Section
+
+    private var feedbackSection: some View {
+        Section {
+            @Bindable var store = settingsStore
+            Toggle("Sound Feedback", isOn: $store.soundFeedbackEnabled)
+                .accessibilityHint("When enabled, plays audio cues when recording starts and stops")
+
+            Toggle("Show Recording Overlay", isOn: $store.showRecordingOverlay)
+                .accessibilityHint("When enabled, a floating overlay appears while recording")
+        } header: {
+            SectionHeader(
+                title: "Feedback",
+                systemImage: "bell",
+                tint: .mint
+            )
+        }
     }
 
     // MARK: - General Section
@@ -274,7 +281,6 @@ struct SettingsView: View {
             Toggle("Launch at Login", isOn: $store.launchAtLogin)
                 .accessibilityHint("When enabled, Wispr starts automatically when you log in")
 
-            // Version info
             HStack {
                 Text("Version")
                     .foregroundStyle(theme.primaryTextColor)
@@ -298,6 +304,11 @@ struct SettingsView: View {
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("Version \(update.version) available. Activate to download.")
             }
+
+            Button("Restore Defaults") {
+                showRestoreDefaultsAlert = true
+            }
+            .accessibilityHint("Resets all settings to their original values")
         } header: {
             SectionHeader(
                 title: "General",
