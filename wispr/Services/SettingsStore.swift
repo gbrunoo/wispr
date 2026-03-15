@@ -203,6 +203,11 @@ final class SettingsStore {
         if let encoded = try? JSONEncoder().encode(languageMode) {
             defaults.set(encoded, forKey: Keys.languageMode)
         }
+
+        // Force cfprefsd to flush to disk immediately.
+        // Without this, in-memory changes can be lost if the process is
+        // terminated quickly (Xcode stop button, NSApp.terminate, SIGKILL).
+        defaults.synchronize()
     }
     
     func load() {
