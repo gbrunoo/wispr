@@ -67,7 +67,7 @@ final class SettingsStore {
     /// When true, hotkey toggles recording on/off (press once to start, press again to stop).
     /// When false, uses push-to-talk (hold to record, release to stop).
     var handsFreeMode: Bool {
-        didSet { save() }
+        didSet { guard !isLoading else { return }; defaults.set(handsFreeMode, forKey: Keys.handsFreeMode) }
     }
 
     /// When true, plays short audio cues on recording start/stop.
@@ -182,10 +182,13 @@ final class SettingsStore {
     }
     
     // MARK: - Persistence
+
+    /// Persists all current values to UserDefaults without forcing a disk flush.
+    /// Safe to call frequently — each `defaults.set` is cheap (in-memory update
+    /// that the system coalesces and writes to disk on its own schedule).
     func save() {
-        // Don't save while loading to avoid overwriting persisted values
         guard !isLoading else { return }
-        
+
         defaults.set(Int(hotkeyKeyCode), forKey: Keys.hotkeyKeyCode)
         defaults.set(Int(hotkeyModifiers), forKey: Keys.hotkeyModifiers)
         defaults.set(selectedAudioDeviceUID, forKey: Keys.selectedAudioDeviceUID)
@@ -199,14 +202,16 @@ final class SettingsStore {
         defaults.set(autoSuffixText, forKey: Keys.autoSuffixText)
         defaults.set(autoSendEnterEnabled, forKey: Keys.autoSendEnterEnabled)
 
-        // Encode languageMode
         if let encoded = try? JSONEncoder().encode(languageMode) {
             defaults.set(encoded, forKey: Keys.languageMode)
         }
+    }
 
-        // Force cfprefsd to flush to disk immediately.
-        // Without this, in-memory changes can be lost if the process is
-        // terminated quickly (Xcode stop button, NSApp.terminate, SIGKILL).
+    /// Persists all values and forces cfprefsd to flush to disk immediately.
+    /// Only call this at critical moments (app termination, onboarding completion)
+    /// where an abrupt process exit could lose in-memory changes.
+    func flush() {
+        save()
         defaults.synchronize()
     }
     

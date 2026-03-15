@@ -216,7 +216,7 @@ final class WisprAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
         Log.app.debug("completeOnboarding — onboarding finished")
 
         settingsStore.onboardingCompleted = true
-        settingsStore.save()
+        settingsStore.flush()
 
         onboardingWindow?.close()
         onboardingWindow = nil
@@ -251,7 +251,7 @@ final class WisprAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
         // Force UserDefaults to flush to disk before the process exits.
         // Without this, in-memory changes (e.g. onboardingCompleted) can be
         // lost if the app is terminated quickly (Xcode stop, NSApp.terminate).
-        settingsStore.save()
+        settingsStore.flush()
     }
 
     // MARK: - Onboarding Window
