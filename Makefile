@@ -19,11 +19,6 @@ API_KEY_ID     := $(shell jq -r .apple_api_key_id $(CURDIR)/secrets/asc-api-key.
 API_ISSUER     := $(shell jq -r .apple_api_issuer_id $(CURDIR)/secrets/asc-api-key.json 2>/dev/null)
 API_KEY_PATH   := $(API_KEYS_DIR)/AuthKey_$(API_KEY_ID).p8
 
-# Notarization (read from secrets/notarization.json)
-NOTARIZATION_JSON := $(CURDIR)/secrets/notarization.json
-APPLE_ID          := $(shell jq -r .apple_id $(NOTARIZATION_JSON) 2>/dev/null)
-TEAM_ID           := $(shell jq -r .team_id $(NOTARIZATION_JSON) 2>/dev/null)
-SIGNING_IDENTITY  := $(shell jq -r .signing_identity $(NOTARIZATION_JSON) 2>/dev/null)
 APP_PATH          := $(EXPORT_DIR)/Wispr.app
 ZIP_PATH          := $(EXPORT_DIR)/wispr-notarized.zip
 
@@ -57,17 +52,16 @@ upload: archive _setup-api-key ## Archive and upload to App Store Connect
 		-authenticationKeyIssuerID $(API_ISSUER) | xcbeautify
 	@$(MAKE) _cleanup-api-key
 
-notarize: archive _setup-api-key ## Archive, sign, notarize, and staple the app
-	@test -f "$(NOTARIZATION_JSON)" || { echo "Error: $(NOTARIZATION_JSON) not found"; exit 1; }
-	@rm -rf "$(EXPORT_DIR)"
-	@mkdir -p "$(EXPORT_DIR)"
-	@ditto "$(ARCHIVE_PATH)/Products/Applications/wispr.app" "$(APP_PATH)"
-	@echo "🔐 Signing app..."
-	@codesign --deep --force --verify --verbose \
-		--sign "$(SIGNING_IDENTITY)" \
-		--options runtime \
-		--entitlements wispr.entitlements \
-		"$(APP_PATH)"
+notarize: archive _setup-api-key ## Archive, export with Developer ID, notarize, and staple
+	@echo "📦 Exporting with Developer ID signing..."
+	xcodebuild -exportArchive \
+		-archivePath $(ARCHIVE_PATH) \
+		-exportPath $(EXPORT_DIR) \
+		-exportOptionsPlist ExportOptionsHomebrew.plist \
+		-allowProvisioningUpdates \
+		-authenticationKeyPath $(API_KEY_PATH) \
+		-authenticationKeyID $(API_KEY_ID) \
+		-authenticationKeyIssuerID $(API_ISSUER) | xcbeautify
 	@echo "🗜️  Creating zip..."
 	@ditto -c -k --keepParent "$(APP_PATH)" "$(ZIP_PATH)"
 	@echo "📤 Submitting for notarization..."
