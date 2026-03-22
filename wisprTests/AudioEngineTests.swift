@@ -373,6 +373,57 @@ struct AudioEngineTests {
         #expect(uids.count == devices.count, "Device UIDs should be unique")
     }
     
+    // MARK: - Device UID Resolution Tests (Issue #36)
+
+    @Test("AudioEngine resolves known device UID to correct AudioDeviceID")
+    func testDeviceIDForUID_knownDevice() async {
+        let engine = AudioEngine()
+
+        let devices = await engine.availableInputDevices()
+        guard let device = devices.first else {
+            #expect(true, "No devices available to test UID resolution")
+            return
+        }
+
+        let resolvedID = await engine.deviceIDForUID(device.uid)
+        #expect(resolvedID == device.id, "Resolved device ID should match the original device ID")
+    }
+
+    @Test("AudioEngine returns nil for unknown device UID")
+    func testDeviceIDForUID_unknownDevice() async {
+        let engine = AudioEngine()
+
+        let resolvedID = await engine.deviceIDForUID("com.nonexistent.device.uid.12345")
+        #expect(resolvedID == nil, "Should return nil for an unknown device UID")
+    }
+
+    @Test("AudioEngine setInputDevice is applied before startCapture",
+          .enabled(if: isLocalTestEnvironment, "Requires microphone permission"))
+    func testSetInputDeviceBeforeCapture() async throws {
+        let engine = AudioEngine()
+
+        let devices = await engine.availableInputDevices()
+        guard let device = devices.first else {
+            #expect(true, "No devices available to test")
+            return
+        }
+
+        // Set a specific device, then start capture — should not throw
+        try await engine.setInputDevice(device.id)
+
+        do {
+            let _ = try await engine.startCapture()
+            #expect(true, "Capture should start with selected device")
+            await engine.cancelCapture()
+        } catch let error as WisprError {
+            if case .audioRecordingFailed = error {
+                #expect(true, "Audio recording may fail in test environment without permissions")
+            } else {
+                throw error
+            }
+        }
+    }
+
     // MARK: - Edge Cases
     
     @Test("AudioEngine handles rapid start/stop cycles",

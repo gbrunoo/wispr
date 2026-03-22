@@ -38,8 +38,15 @@ actor AudioEngine {
     /// Sets the input device for audio capture
     /// - Parameter deviceID: The AudioDeviceID to use for input
     /// - Throws: WisprError if the device cannot be set
-    func setInputDevice(_ deviceID: AudioDeviceID) throws {
+    func setInputDevice(_ deviceID: AudioDeviceID?) throws {
         selectedDeviceID = deviceID
+    }
+
+    /// Resolves a device UID string to its AudioDeviceID.
+    /// - Parameter uid: The persistent UID string stored in settings
+    /// - Returns: The AudioDeviceID, or nil if no matching device is found
+    func deviceIDForUID(_ uid: String) -> AudioDeviceID? {
+        availableInputDevices().first { $0.uid == uid }?.id
     }
     
     /// Returns a list of available audio input devices
@@ -69,8 +76,29 @@ actor AudioEngine {
         // Create and configure the audio engine
         let audioEngine = AVAudioEngine()
         self.engine = audioEngine
-        
+
         let inputNode = audioEngine.inputNode
+
+        // Apply the user's selected input device before reading the format.
+        // kAudioOutputUnitProperty_CurrentDevice must be set on the input
+        // node's AudioUnit prior to engine.start() so that AVAudioEngine
+        // captures from the chosen device instead of the system default.
+        if let deviceID = selectedDeviceID, let audioUnit = inputNode.audioUnit {
+            var devID = deviceID
+            let status = AudioUnitSetProperty(
+                audioUnit,
+                kAudioOutputUnitProperty_CurrentDevice,
+                kAudioUnitScope_Global,
+                0,
+                &devID,
+                UInt32(MemoryLayout<AudioDeviceID>.size)
+            )
+            if status != noErr {
+                Log.audioEngine.warning("Failed to set input device \(deviceID), using system default (OSStatus: \(status))")
+                selectedDeviceID = nil
+            }
+        }
+
         let inputFormat = inputNode.outputFormat(forBus: 0)
         
         // WhisperKit requires 16kHz mono Float32 audio
