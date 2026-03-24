@@ -12,211 +12,143 @@ import Foundation
 @Suite("FillerWordCleaner Tests")
 struct FillerWordCleanerTests {
 
-    // MARK: - Basic Filler Removal
+    // MARK: - Test Case Types
 
-    @Test("Removes 'um' from text")
-    func testRemovesUm() {
-        #expect(FillerWordCleaner.clean("I um think so") == "I think so")
+    /// Input/expected pair for parameterized clean() tests.
+    struct CleanCase: Sendable, CustomTestStringConvertible {
+        let input: String
+        let expected: String
+        var testDescription: String { "\"\(input)\" → \"\(expected)\"" }
     }
 
-    @Test("Removes 'uh' from text")
-    func testRemovesUh() {
-        #expect(FillerWordCleaner.clean("uh I think so") == "I think so")
+    // MARK: - Filler Removal (English)
+
+    static nonisolated let englishFillerCases: [CleanCase] = [
+        CleanCase(input: "I um think so", expected: "I think so"),
+        CleanCase(input: "uh I think so", expected: "I think so"),
+        CleanCase(input: "ah that's right", expected: "that's right"),
+        CleanCase(input: "I er need help", expected: "I need help"),
+        CleanCase(input: "erm let me think", expected: "let me think"),
+        CleanCase(input: "hmm interesting", expected: "interesting"),
+        CleanCase(input: "hm okay", expected: "okay"),
+        CleanCase(input: "mhm I agree", expected: "I agree"),
+        CleanCase(input: "uh-huh that works", expected: "that works"),
+        CleanCase(input: "oh I see", expected: "I see"),
+        CleanCase(input: "eh not sure", expected: "not sure"),
+    ]
+
+    @Test("Removes English filler words", arguments: englishFillerCases)
+    func englishFillerRemoval(_ c: CleanCase) {
+        #expect(FillerWordCleaner.clean(c.input) == c.expected)
     }
 
-    @Test("Removes 'ah' from text")
-    func testRemovesAh() {
-        #expect(FillerWordCleaner.clean("ah that's right") == "that's right")
+    // MARK: - Filler Removal (French)
+
+    static nonisolated let frenchFillerCases: [CleanCase] = [
+        CleanCase(input: "je euh pense que oui", expected: "je pense que oui"),
+        CleanCase(input: "heu attends", expected: "attends"),
+        CleanCase(input: "c'est bien hein", expected: "c'est bien"),
+        CleanCase(input: "bah oui c'est ça", expected: "oui c'est ça"),
+        CleanCase(input: "ben je sais pas", expected: "je sais pas"),
+        CleanCase(input: "beh voilà", expected: "voilà"),
+        CleanCase(input: "pfff c'est compliqué", expected: "c'est compliqué"),
+        CleanCase(input: "pfffff vraiment", expected: "vraiment"),
+        CleanCase(input: "mouais peut-être", expected: "peut-être"),
+        CleanCase(input: "oh je vois", expected: "je vois"),
+        CleanCase(input: "eh bien sûr", expected: "bien sûr"),
+    ]
+
+    @Test("Removes French filler words", arguments: frenchFillerCases)
+    func frenchFillerRemoval(_ c: CleanCase) {
+        #expect(FillerWordCleaner.clean(c.input) == c.expected)
     }
 
-    @Test("Removes 'er' from text")
-    func testRemovesEr() {
-        #expect(FillerWordCleaner.clean("I er need help") == "I need help")
+    // MARK: - Multiple & Mixed Fillers
+
+    static nonisolated let multiFillerCases: [CleanCase] = [
+        CleanCase(input: "um I uh think er it works", expected: "I think it works"),
+        CleanCase(input: "euh je heu pense que bah oui", expected: "je pense que oui"),
+        CleanCase(input: "um euh I think heu so", expected: "I think so"),
+        CleanCase(input: "UM I think UH so", expected: "I think so"),
+        CleanCase(input: "Um yeah Uh-Huh", expected: "yeah"),
+    ]
+
+    @Test("Removes multiple and mixed-language fillers", arguments: multiFillerCases)
+    func multiFillerRemoval(_ c: CleanCase) {
+        #expect(FillerWordCleaner.clean(c.input) == c.expected)
     }
 
-    @Test("Removes 'erm' from text")
-    func testRemovesErm() {
-        #expect(FillerWordCleaner.clean("erm let me think") == "let me think")
+    // MARK: - Word Boundary Safety
+
+    static nonisolated let wordBoundaryCases: [CleanCase] = [
+        CleanCase(input: "umbrella", expected: "umbrella"),
+        CleanCase(input: "hummer", expected: "hummer"),
+        CleanCase(input: "errand", expected: "errand"),
+        CleanCase(input: "thermal", expected: "thermal"),
+        CleanCase(input: "benne", expected: "benne"),
+        CleanCase(input: "bahut", expected: "bahut"),
+        CleanCase(input: "heure", expected: "heure"),
+    ]
+
+    @Test("Does not remove filler patterns inside real words", arguments: wordBoundaryCases)
+    func wordBoundarySafety(_ c: CleanCase) {
+        #expect(FillerWordCleaner.clean(c.input) == c.expected)
     }
 
-    @Test("Removes 'hmm' from text")
-    func testRemovesHmm() {
-        #expect(FillerWordCleaner.clean("hmm interesting") == "interesting")
+    // MARK: - Punctuation Cleanup
+
+    static nonisolated let punctuationCases: [CleanCase] = [
+        CleanCase(input: "Well, um, I think so", expected: "Well, I think so"),
+        CleanCase(input: "um, I think so", expected: "I think so"),
+        CleanCase(input: "first; uh; second", expected: "first; second"),
+        CleanCase(input: "Bon, euh, je pense", expected: "Bon, je pense"),
+    ]
+
+    @Test("Cleans up punctuation around fillers", arguments: punctuationCases)
+    func punctuationCleanup(_ c: CleanCase) {
+        #expect(FillerWordCleaner.clean(c.input) == c.expected)
     }
 
-    @Test("Removes 'hm' from text")
-    func testRemovesHm() {
-        #expect(FillerWordCleaner.clean("hm okay") == "okay")
+    // MARK: - Edge Cases (kept as individual tests)
+
+    @Test("Returns empty string for empty input")
+    func emptyInput() {
+        #expect(FillerWordCleaner.clean("") == "")
     }
 
-    @Test("Removes 'mhm' from text")
-    func testRemovesMhm() {
-        #expect(FillerWordCleaner.clean("mhm I agree") == "I agree")
-    }
-
-    @Test("Removes 'uh-huh' from text")
-    func testRemovesUhHuh() {
-        #expect(FillerWordCleaner.clean("uh-huh that works") == "that works")
-    }
-
-    // MARK: - French Filler Removal
-
-    @Test("Removes 'euh' from text")
-    func testRemovesEuh() {
-        #expect(FillerWordCleaner.clean("je euh pense que oui") == "je pense que oui")
-    }
-
-    @Test("Removes 'heu' from text")
-    func testRemovesHeu() {
-        #expect(FillerWordCleaner.clean("heu attends") == "attends")
-    }
-
-    @Test("Removes 'hein' from text")
-    func testRemovesHein() {
-        #expect(FillerWordCleaner.clean("c'est bien hein") == "c'est bien")
-    }
-
-    @Test("Removes 'bah' from text")
-    func testRemovesBah() {
-        #expect(FillerWordCleaner.clean("bah oui c'est ça") == "oui c'est ça")
-    }
-
-    @Test("Removes 'ben' from text")
-    func testRemovesBen() {
-        #expect(FillerWordCleaner.clean("ben je sais pas") == "je sais pas")
-    }
-
-    @Test("Removes 'beh' from text")
-    func testRemovesBeh() {
-        #expect(FillerWordCleaner.clean("beh voilà") == "voilà")
-    }
-
-    @Test("Removes 'pfff' and variants from text")
-    func testRemovesPfff() {
-        #expect(FillerWordCleaner.clean("pfff c'est compliqué") == "c'est compliqué")
-        #expect(FillerWordCleaner.clean("pfffff vraiment") == "vraiment")
-    }
-
-    @Test("Removes 'mouais' from text")
-    func testRemovesMouais() {
-        #expect(FillerWordCleaner.clean("mouais peut-être") == "peut-être")
-    }
-
-    @Test("Removes 'oh' from text")
-    func testRemovesOh() {
-        #expect(FillerWordCleaner.clean("oh je vois") == "je vois")
-    }
-
-    @Test("Removes 'eh' from text")
-    func testRemovesEh() {
-        #expect(FillerWordCleaner.clean("eh bien sûr") == "bien sûr")
-    }
-
-    @Test("Removes multiple French fillers in one sentence")
-    func testMultipleFrenchFillers() {
-        #expect(FillerWordCleaner.clean("euh je heu pense que bah oui") == "je pense que oui")
-    }
-
-    @Test("Removes mixed English and French fillers")
-    func testMixedEnglishFrenchFillers() {
-        #expect(FillerWordCleaner.clean("um euh I think heu so") == "I think so")
-    }
-
-    @Test("Does not remove French filler patterns inside real words")
-    func testFrenchWordBoundaries() {
-        #expect(FillerWordCleaner.clean("benne") == "benne")
-        #expect(FillerWordCleaner.clean("bahut") == "bahut")
-        #expect(FillerWordCleaner.clean("heure") == "heure")
+    @Test("Returns empty string when input is only English fillers")
+    func onlyEnglishFillers() {
+        #expect(FillerWordCleaner.clean("um uh er") == "")
     }
 
     @Test("Returns empty string when input is only French fillers")
-    func testOnlyFrenchFillers() {
+    func onlyFrenchFillers() {
         #expect(FillerWordCleaner.clean("euh heu bah") == "")
     }
 
-    // MARK: - Case Insensitivity
-
-    @Test("Removes filler words regardless of case")
-    func testCaseInsensitive() {
-        #expect(FillerWordCleaner.clean("UM I think UH so") == "I think so")
-        #expect(FillerWordCleaner.clean("Um yeah Uh-Huh") == "yeah")
+    @Test("Returns text unchanged when no fillers present")
+    func noFillers() {
+        #expect(FillerWordCleaner.clean("Hello world") == "Hello world")
     }
-
-    // MARK: - Multiple Fillers
-
-    @Test("Removes multiple filler words in one sentence")
-    func testMultipleFillers() {
-        #expect(FillerWordCleaner.clean("um I uh think er it works") == "I think it works")
-    }
-
-    // MARK: - Word Boundary Respect
-
-    @Test("Does not remove filler patterns inside real words")
-    func testWordBoundaries() {
-        #expect(FillerWordCleaner.clean("umbrella") == "umbrella")
-        #expect(FillerWordCleaner.clean("hummer") == "hummer")
-        #expect(FillerWordCleaner.clean("errand") == "errand")
-        #expect(FillerWordCleaner.clean("thermal") == "thermal")
-    }
-
-    // MARK: - Whitespace Handling
 
     @Test("Collapses extra spaces left after removal")
-    func testCollapsesSpaces() {
-        let result = FillerWordCleaner.clean("I  um  think  uh  so")
-        #expect(result == "I think so")
+    func collapsesSpaces() {
+        #expect(FillerWordCleaner.clean("I  um  think  uh  so") == "I think so")
     }
 
     @Test("Trims leading and trailing whitespace")
-    func testTrimsWhitespace() {
+    func trimsWhitespace() {
         #expect(FillerWordCleaner.clean("um hello") == "hello")
         #expect(FillerWordCleaner.clean("hello um") == "hello")
     }
 
-    // MARK: - Edge Cases
-
-    @Test("Returns empty string when input is only filler words")
-    func testOnlyFillers() {
-        #expect(FillerWordCleaner.clean("um uh er") == "")
-    }
-
-    @Test("Returns empty string for empty input")
-    func testEmptyInput() {
-        #expect(FillerWordCleaner.clean("") == "")
-    }
-
-    @Test("Returns text unchanged when no fillers present")
-    func testNoFillers() {
-        #expect(FillerWordCleaner.clean("Hello world") == "Hello world")
-    }
-
-    @Test("Cleans up filler between commas: 'Well, um, I think so'")
-    func testFillerBetweenCommas() {
-        #expect(FillerWordCleaner.clean("Well, um, I think so") == "Well, I think so")
-    }
-
-    @Test("Cleans up filler with trailing comma: 'um, I think so'")
-    func testFillerWithTrailingComma() {
-        #expect(FillerWordCleaner.clean("um, I think so") == "I think so")
-    }
-
-    @Test("Cleans up filler between semicolons")
-    func testFillerBetweenSemicolons() {
-        #expect(FillerWordCleaner.clean("first; uh; second") == "first; second")
-    }
-
-    @Test("Cleans up French filler between commas")
-    func testFrenchFillerBetweenCommas() {
-        #expect(FillerWordCleaner.clean("Bon, euh, je pense") == "Bon, je pense")
-    }
-
     @Test("Preserves non-English text")
-    func testNonEnglishText() {
+    func nonEnglishText() {
         #expect(FillerWordCleaner.clean("こんにちは um 世界") == "こんにちは 世界")
     }
 
     @Test("Handles emoji in text")
-    func testEmojiText() {
+    func emojiText() {
         #expect(FillerWordCleaner.clean("🎤 um hello 🌍") == "🎤 hello 🌍")
     }
 }
