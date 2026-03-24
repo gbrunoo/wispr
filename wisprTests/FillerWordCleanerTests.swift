@@ -33,6 +33,7 @@ struct FillerWordCleanerTests {
         CleanCase(input: "hm okay", expected: "okay"),
         CleanCase(input: "mhm I agree", expected: "I agree"),
         CleanCase(input: "uh-huh that works", expected: "that works"),
+        CleanCase(input: "uh–huh that works", expected: "that works"), // en dash
         CleanCase(input: "oh I see", expected: "I see"),
         CleanCase(input: "eh not sure", expected: "not sure"),
     ]
