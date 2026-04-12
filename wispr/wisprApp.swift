@@ -82,6 +82,9 @@ final class WisprAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
     /// Global hotkey registration (Carbon Events).
     let hotkeyMonitor = HotkeyMonitor()
 
+    /// On-device AI text correction using FoundationModels.
+    let textCorrectionService = TextCorrectionService()
+
     /// Shared UI theme engine for appearance and accessibility adaptations.
     let themeEngine = UIThemeEngine.shared
 
@@ -139,11 +142,15 @@ final class WisprAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
             audioEngine: audioEngine,
             whisperService: whisperService,
             textInsertionService: textInsertionService,
+            textCorrectionService: textCorrectionService,
             hotkeyMonitor: hotkeyMonitor,
             permissionManager: permissionManager,
             settingsStore: settingsStore
         )
         stateManager = sm
+
+        // Check AI text correction availability on launch
+        textCorrectionService.checkAvailability()
 
         Log.app.debug("bootstrap — StateManager initialized")
 
@@ -156,6 +163,7 @@ final class WisprAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
             audioEngine: audioEngine,
             whisperService: whisperService,
             permissionManager: permissionManager,
+            textCorrectionService: textCorrectionService,
             updateChecker: updateChecker
         )
 
