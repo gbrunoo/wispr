@@ -123,21 +123,38 @@ struct StateManagerTests {
         #expect(sm.appState == .processing)
     }
 
-    @Test("beginRecording is ignored when in error state")
-    func testConcurrentRecordingPreventionWhileError() async {
+    @Test("beginRecording dismisses error state and attempts recording (issue #52)")
+    func testBeginRecordingDismissesError() async {
         let (sm, _) = createTestStateManager(permissionsGranted: true)
 
         // Force state to error
         sm.appState = .error("some error")
+        sm.errorMessage = "some error"
 
         await sm.beginRecording()
 
-        // Should remain in error state
-        if case .error = sm.appState {
-            // Expected
-        } else {
-            Issue.record("State should remain in error")
+        // The original error must be dismissed. beginRecording() may end in a
+        // new .error if AudioEngine.startCapture() fails in the test environment,
+        // so we assert the original error was cleared rather than requiring .recording.
+        if case let .error(message) = sm.appState {
+            #expect(message != "some error")
         }
+        #expect(sm.errorMessage != "some error")
+    }
+
+    @Test("toggleRecording dismisses error state and attempts recording (issue #52)")
+    func testToggleRecordingDismissesError() async {
+        let (sm, _) = createTestStateManager(permissionsGranted: true)
+
+        sm.appState = .error("some error")
+        sm.errorMessage = "some error"
+
+        await sm.toggleRecording()
+
+        if case let .error(message) = sm.appState {
+            #expect(message != "some error")
+        }
+        #expect(sm.errorMessage != "some error")
     }
 
     // MARK: - Permission Check on Recording
@@ -739,18 +756,18 @@ struct StateManagerTests {
         #expect(sm.appState == .processing)
     }
 
-    @Test("toggleRecording is ignored during error state")
-    func testToggleRecordingIgnoredWhileError() async {
+    @Test("toggleRecording dismisses error and attempts new recording (issue #52)")
+    func testToggleRecordingDismissesErrorHandsFree() async {
         let (sm, _) = Self.makeHandsFreeStateManager()
         sm.appState = .error("test error")
+        sm.errorMessage = "test error"
 
         await sm.toggleRecording()
 
-        if case .error = sm.appState {
-            // Expected — unchanged
-        } else {
-            Issue.record("toggleRecording should not change error state")
+        if case let .error(message) = sm.appState {
+            #expect(message != "test error")
         }
+        #expect(sm.errorMessage != "test error")
     }
 
     @Test("toggleRecording from recording with no permissions still returns to idle")
