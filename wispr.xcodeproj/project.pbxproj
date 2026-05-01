@@ -539,7 +539,7 @@
 				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = Wispr;
+				INFOPLIST_KEY_CFBundleDisplayName = "Wispr Steno";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
@@ -550,7 +550,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.9.2;
-				PRODUCT_BUNDLE_IDENTIFIER = com.stormacq.mac.wispr;
+				PRODUCT_BUNDLE_IDENTIFIER = com.stormacq.mac.wispr.steno;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -585,7 +585,7 @@
 				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = Wispr;
+				INFOPLIST_KEY_CFBundleDisplayName = "Wispr Steno";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
@@ -596,7 +596,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.9.2;
-				PRODUCT_BUNDLE_IDENTIFIER = com.stormacq.mac.wispr;
+				PRODUCT_BUNDLE_IDENTIFIER = com.stormacq.mac.wispr.steno;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				REGISTER_APP_GROUPS = YES;

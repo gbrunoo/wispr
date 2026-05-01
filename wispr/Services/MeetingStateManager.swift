@@ -191,6 +191,22 @@ final class MeetingStateManager {
         }
     }
 
+    // MARK: - Speaker Detection
+
+    /// Whether the mic is currently active (you're speaking).
+    /// Used to suppress system audio transcription during your speech,
+    /// since meeting apps echo your voice back through system audio.
+    private var isMicActive: Bool = false
+
+    /// Timestamp of the last mic activity, used to debounce.
+    private var lastMicActivityTime: Date = .distantPast
+
+    /// How long after mic goes silent before we consider system audio as "Others" again.
+    /// With a headset there's no acoustic echo, but meeting apps still mix your voice
+    /// into the system audio output. A short debounce avoids cutting off others who
+    /// start speaking right after you stop.
+    private let micSuppressionDebounce: TimeInterval = 0.5
+
     // MARK: - Transcription
 
     private func startMicTranscription() {
@@ -202,6 +218,25 @@ final class MeetingStateManager {
             for await chunk in audioStream {
                 guard !Task.isCancelled else { break }
                 guard chunk.count >= 8000 else { continue }
+
+                // Check if mic chunk has meaningful audio (not silence)
+                let rms = Self.rmsLevel(chunk)
+                let hasSpeech = rms > 0.01
+
+                await MainActor.run {
+                    if hasSpeech {
+                        self.isMicActive = true
+                        self.lastMicActivityTime = Date()
+                    } else {
+                        // Debounce: only mark inactive after the suppression window
+                        if Date().timeIntervalSince(self.lastMicActivityTime) > self.micSuppressionDebounce {
+                            self.isMicActive = false
+                        }
+                    }
+                }
+
+                // Only transcribe if there's actual speech
+                guard hasSpeech else { continue }
 
                 do {
                     let result = try await self.transcriptionEngine.transcribe(chunk, language: language)
@@ -231,6 +266,15 @@ final class MeetingStateManager {
                 guard !Task.isCancelled else { break }
                 guard chunk.count >= 8000 else { continue }
 
+                // Suppress system transcription while mic is active.
+                // When you're speaking, the meeting app echoes your voice
+                // through system audio, causing duplicate "Others" entries.
+                let micActive = await MainActor.run { self.isMicActive }
+                if micActive {
+                    Log.stateManager.debug("MeetingStateManager — suppressing system chunk (mic active)")
+                    continue
+                }
+
                 do {
                     let result = try await self.transcriptionEngine.transcribe(chunk, language: language)
                     let text = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -247,6 +291,13 @@ final class MeetingStateManager {
                 }
             }
         }
+    }
+
+    /// Calculates the RMS (root mean square) level of an audio chunk.
+    private static func rmsLevel(_ samples: [Float]) -> Float {
+        guard !samples.isEmpty else { return 0 }
+        let sumOfSquares = samples.reduce(0.0) { $0 + $1 * $1 }
+        return sqrt(sumOfSquares / Float(samples.count))
     }
 
     // MARK: - Audio Level Consumption

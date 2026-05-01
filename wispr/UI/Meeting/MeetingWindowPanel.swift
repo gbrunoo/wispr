@@ -14,7 +14,7 @@ import SwiftUI
 /// Unlike the compact RecordingOverlayPanel, this is a resizable window
 /// with title bar, close button, and full transcript view.
 @MainActor
-final class MeetingWindowPanel {
+final class MeetingWindowPanel: NSObject, NSWindowDelegate {
 
     // MARK: - Properties
 
@@ -46,9 +46,11 @@ final class MeetingWindowPanel {
             createPanel()
         }
 
-        guard let panel, !isVisible else { return }
+        guard let panel else { return }
 
-        positionPanel(panel)
+        if !isVisible {
+            positionPanel(panel)
+        }
         panel.makeKeyAndOrderFront(nil)
         panel.orderFrontRegardless()
         isVisible = true
@@ -59,6 +61,17 @@ final class MeetingWindowPanel {
         guard let panel, isVisible else { return }
         panel.orderOut(nil)
         isVisible = false
+    }
+
+    // MARK: - NSWindowDelegate
+
+    /// Called when the user closes the window via the red X button.
+    /// Syncs `isWindowVisible` back to false so the menu item can reopen it.
+    nonisolated func windowWillClose(_ notification: Notification) {
+        MainActor.assumeIsolated {
+            isVisible = false
+            meetingStateManager.isWindowVisible = false
+        }
     }
 
     // MARK: - Private Helpers
@@ -89,6 +102,7 @@ final class MeetingWindowPanel {
         panel.contentView = hostingView
         panel.minSize = NSSize(width: 320, height: 300)
         panel.isReleasedWhenClosed = false
+        panel.delegate = self
 
         self.panel = panel
     }
