@@ -112,10 +112,10 @@ struct OnboardingFlow: View {
                 .foregroundStyle(theme.secondaryTextColor)
 
             HStack(spacing: 0) {
-                ForEach(Array(OnboardingStep.allCases.enumerated()), id: \.element.rawValue) { index, step in
+                ForEach(OnboardingStep.allCases, id: \.rawValue) { step in
                     stepDot(for: step)
 
-                    if index < OnboardingStep.allCases.count - 1 {
+                    if step != .completion {
                         Capsule()
                             .fill(step.rawValue < currentStep.rawValue
                                   ? theme.successColor.opacity(0.5)
