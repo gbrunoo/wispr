@@ -118,10 +118,6 @@ final class SettingsStore {
         }
     }
 
-    // MARK: - App Variant
-
-
-
     // MARK: - UserDefaults Keys
     private enum Keys {
         static let hotkeyKeyCode = "hotkeyKeyCode"

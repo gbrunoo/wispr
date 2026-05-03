@@ -38,7 +38,7 @@ enum ModelPaths {
         // macOS sets APP_SANDBOX_CONTAINER_ID for sandboxed processes.
         let isSandboxed = ProcessInfo.processInfo.environment["APP_SANDBOX_CONTAINER_ID"] != nil
         if isSandboxed {
-            // Inside the sandbox: FileManager automatically redirects
+            // Inside the sandbox (GUI app): FileManager automatically redirects
             // to ~/Library/Containers/<bundle-id>/Data/Library/Application Support/
             guard let appSupport = FileManager.default.urls(
                 for: .applicationSupportDirectory,
@@ -46,24 +46,7 @@ enum ModelPaths {
             ).first else {
                 fatalError("Application Support directory unavailable — cannot store models")
             }
-            let ownPath = appSupport.appendingPathComponent("wispr", isDirectory: true)
-
-            // If this app's container already has models, use it.
-            if FileManager.default.fileExists(atPath: ownPath.path) {
-                return ownPath
-            }
-
-            // Otherwise, check the original Wispr app's container for shared models.
-            let home = FileManager.default.homeDirectoryForCurrentUser
-            let originalContainer = home.appendingPathComponent(
-                "Library/Containers/com.stormacq.mac.wispr/Data/Library/Application Support/wispr"
-            )
-            if FileManager.default.fileExists(atPath: originalContainer.path) {
-                return originalContainer
-            }
-
-            // Neither exists yet — use own container (will be created on first download).
-            return ownPath
+            return appSupport.appendingPathComponent("wispr", isDirectory: true)
         }
 
         // Outside the sandbox (wispr-cli): read models from the GUI app's
