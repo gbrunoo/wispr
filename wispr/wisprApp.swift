@@ -73,7 +73,7 @@ final class WisprAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
     /// Composite engine aggregating WhisperKit and Parakeet V3 behind a single interface.
     let whisperService: any TranscriptionEngine = CompositeTranscriptionEngine(engines: [
         WhisperService(),
-        ParakeetService()
+        ParakeetService(),
     ])
 
     /// Text insertion via Accessibility API / clipboard fallback.
@@ -209,7 +209,8 @@ final class WisprAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
                 modifiers: settingsStore.hotkeyModifiers
             )
         } catch {
-            Log.hotkey.error("bootstrap — hotkey registration failed: \(error.localizedDescription)")
+            Log.hotkey.error(
+                "bootstrap — hotkey registration failed: \(error.localizedDescription)")
         }
 
         // Start theme engine monitoring for appearance / accessibility changes
@@ -235,7 +236,9 @@ final class WisprAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
         let updater = updateChecker
         updateCheckTask = Task {
             await updater.checkForUpdate()
-            Log.updateChecker.info("Update check task completed — availableUpdate: \(updater.availableUpdate?.version ?? "none")")
+            Log.updateChecker.info(
+                "Update check task completed — availableUpdate: \(updater.availableUpdate?.version ?? "none")"
+            )
         }
 
         // Requirement 13.1, 13.12: Show onboarding on first launch
@@ -277,7 +280,8 @@ final class WisprAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
     /// the onboarding-completed flag so the wizard reappears on next launch (Req 13.16).
     func windowWillClose(_ notification: Notification) {
         guard let closingWindow = notification.object as? NSWindow,
-              closingWindow === onboardingWindow else { return }
+            closingWindow === onboardingWindow
+        else { return }
         if !settingsStore.onboardingCompleted {
             NSApplication.shared.terminate(nil)
         }
@@ -291,10 +295,8 @@ final class WisprAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
         permissionMonitoringTask?.cancel()
         updateCheckTask?.cancel()
 
-        // Stop any active meeting session
-        if let msm = meetingStateManager {
-            Task { await msm.stopMeeting() }
-        }
+        // Stop any active meeting session (synchronous — cascades via task group)
+        meetingStateManager?.cancelRecording()
 
         // Force UserDefaults to flush to disk before the process exits.
         settingsStore.flush()
@@ -373,7 +375,9 @@ final class WisprAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
                     )
                     Log.app.debug("hotkeyObservation — re-registered hotkey")
                 } catch {
-                    Log.app.error("hotkeyObservation — failed to re-register hotkey: \(error.localizedDescription)")
+                    Log.app.error(
+                        "hotkeyObservation — failed to re-register hotkey: \(error.localizedDescription)"
+                    )
                 }
             }
         }
@@ -421,7 +425,9 @@ final class WisprAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
             if settingsStore.showRecordingOverlay, let overlay = overlayPanel, !overlay.isVisible {
                 Log.app.debug("overlayObservation — showing overlay for state: \(state)")
                 overlay.show()
-            } else if !settingsStore.showRecordingOverlay, let overlay = overlayPanel, overlay.isVisible {
+            } else if !settingsStore.showRecordingOverlay, let overlay = overlayPanel,
+                overlay.isVisible
+            {
                 overlay.dismiss()
             }
         case .idle:

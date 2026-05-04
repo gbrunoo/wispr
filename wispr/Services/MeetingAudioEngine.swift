@@ -41,6 +41,11 @@ actor MeetingAudioEngine {
     private var micLevelContinuation: AsyncStream<Float>.Continuation?
     private var systemLevelContinuation: AsyncStream<Float>.Continuation?
 
+    private var micSampleBridgeContinuation: AsyncStream<[Float]>.Continuation?
+    private var micConsumerTask: Task<Void, Never>?
+    private var systemSampleBridgeContinuation: AsyncStream<[Float]>.Continuation?
+    private var systemConsumerTask: Task<Void, Never>?
+
     private var isCapturing = false
 
     /// Whether system audio capture is active (may be false if permission denied).
@@ -63,7 +68,9 @@ actor MeetingAudioEngine {
     ///
     /// - Returns: A tuple of (micLevelStream, systemLevelStream) for UI visualization.
     /// - Throws: If microphone capture fails to start.
-    func startCapture() async throws -> (micLevels: AsyncStream<Float>, systemLevels: AsyncStream<Float>) {
+    func startCapture() async throws -> (
+        micLevels: AsyncStream<Float>, systemLevels: AsyncStream<Float>
+    ) {
         guard !isCapturing else {
             throw WisprError.audioRecordingFailed("Meeting capture already active")
         }
@@ -90,7 +97,9 @@ actor MeetingAudioEngine {
             systemLevels = try await startSystemAudioCapture()
             hasSystemAudio = true
         } catch {
-            Log.audioEngine.warning("MeetingAudioEngine — system audio unavailable: \(error.localizedDescription). Continuing with mic only.")
+            Log.audioEngine.warning(
+                "MeetingAudioEngine — system audio unavailable: \(error.localizedDescription). Continuing with mic only."
+            )
             hasSystemAudio = false
             // Return a silent level stream
             let (silentStream, silentCont) = AsyncStream.makeStream(of: Float.self)
@@ -150,15 +159,20 @@ actor MeetingAudioEngine {
         let (levelStream, levelContinuation) = AsyncStream.makeStream(of: Float.self)
         self.micLevelContinuation = levelContinuation
 
-        guard let targetFormat = AVAudioFormat(
-            commonFormat: .pcmFormatFloat32,
-            sampleRate: 16000,
-            channels: 1,
-            interleaved: false
-        ) else {
+        guard
+            let targetFormat = AVAudioFormat(
+                commonFormat: .pcmFormatFloat32,
+                sampleRate: 16000,
+                channels: 1,
+                interleaved: false
+            )
+        else {
             levelContinuation.finish()
             return levelStream
         }
+
+        let (micBridgeStream, micBridgeCont) = AsyncStream.makeStream(of: [Float].self)
+        self.micSampleBridgeContinuation = micBridgeCont
 
         let audioEngine = AVAudioEngine()
         self.micEngine = audioEngine
@@ -167,13 +181,15 @@ actor MeetingAudioEngine {
         nonisolated(unsafe) var converter: AVAudioConverter?
         nonisolated(unsafe) var sampleRateRatio: Double = 0
 
+        let bridgeContinuation = micBridgeCont
         inputNode.installTap(onBus: 0, bufferSize: 4096, format: nil) { [weak self] buffer, _ in
-            guard let self, buffer.frameLength > 0 else { return }
+            guard self != nil, buffer.frameLength > 0 else { return }
 
             if converter == nil {
                 let bufferFormat = buffer.format
                 guard bufferFormat.sampleRate > 0, bufferFormat.channelCount > 0 else { return }
-                guard let newConverter = AVAudioConverter(from: bufferFormat, to: targetFormat) else { return }
+                guard let newConverter = AVAudioConverter(from: bufferFormat, to: targetFormat)
+                else { return }
                 converter = newConverter
                 sampleRateRatio = targetFormat.sampleRate / bufferFormat.sampleRate
             }
@@ -181,35 +197,45 @@ actor MeetingAudioEngine {
             guard let tapConverter = converter else { return }
 
             let outputFrameCount = AVAudioFrameCount(Double(buffer.frameLength) * sampleRateRatio)
-            guard let outputBuffer = AVAudioPCMBuffer(
-                pcmFormat: targetFormat,
-                frameCapacity: outputFrameCount
-            ) else { return }
+            guard
+                let outputBuffer = AVAudioPCMBuffer(
+                    pcmFormat: targetFormat,
+                    frameCapacity: outputFrameCount
+                )
+            else { return }
 
             nonisolated(unsafe) let inputBuffer = buffer
             var conversionError: NSError?
-            let status = tapConverter.convert(to: outputBuffer, error: &conversionError) { _, outStatus in
+            let status = tapConverter.convert(to: outputBuffer, error: &conversionError) {
+                _, outStatus in
                 outStatus.pointee = .haveData
                 return inputBuffer
             }
 
             guard status != .error,
-                  let channelData = outputBuffer.floatChannelData?[0],
-                  outputBuffer.frameLength > 0 else { return }
+                let channelData = outputBuffer.floatChannelData?[0],
+                outputBuffer.frameLength > 0
+            else { return }
 
-            let samples = Array(UnsafeBufferPointer(start: channelData, count: Int(outputBuffer.frameLength)))
+            let samples = Array(
+                UnsafeBufferPointer(start: channelData, count: Int(outputBuffer.frameLength)))
 
-            Task {
-                await self.processMicSamples(samples)
-            }
+            bridgeContinuation.yield(samples)
         }
 
         do {
             try audioEngine.start()
             Log.audioEngine.debug("MeetingAudioEngine — mic capture started")
         } catch {
-            Log.audioEngine.error("MeetingAudioEngine — mic engine start failed: \(error.localizedDescription)")
+            Log.audioEngine.error(
+                "MeetingAudioEngine — mic engine start failed: \(error.localizedDescription)")
             teardownMic()
+        }
+
+        micConsumerTask = Task {
+            for await samples in micBridgeStream {
+                self.processMicSamples(samples)
+            }
         }
 
         return levelStream
@@ -227,12 +253,17 @@ actor MeetingAudioEngine {
         if micBuffer.count >= chunkSize {
             let chunk = Array(micBuffer.prefix(chunkSize))
             micBuffer.removeFirst(min(chunkSize, micBuffer.count))
-            Log.audioEngine.debug("MeetingAudioEngine — yielding mic chunk of \(chunk.count) samples")
+            Log.audioEngine.debug(
+                "MeetingAudioEngine — yielding mic chunk of \(chunk.count) samples")
             micContinuation?.yield(chunk)
         }
     }
 
     private func teardownMic() {
+        micConsumerTask?.cancel()
+        micConsumerTask = nil
+        micSampleBridgeContinuation?.finish()
+        micSampleBridgeContinuation = nil
         guard let engine = micEngine else { return }
         engine.stop()
         engine.inputNode.removeTap(onBus: 0)
@@ -251,7 +282,8 @@ actor MeetingAudioEngine {
         let (levelStream, levelContinuation) = AsyncStream.makeStream(of: Float.self)
         self.systemLevelContinuation = levelContinuation
 
-        let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
+        let content = try await SCShareableContent.excludingDesktopWindows(
+            false, onScreenWindowsOnly: false)
 
         guard let display = content.displays.first else {
             throw WisprError.audioRecordingFailed("No display found for system audio capture")
@@ -268,18 +300,26 @@ actor MeetingAudioEngine {
         config.sampleRate = 16000
         config.channelCount = 1
 
-        let handler = SystemAudioOutputHandler { [weak self] samples in
-            guard let self else { return }
-            Task {
-                await self.processSystemSamples(samples)
-            }
+        let (systemBridgeStream, systemBridgeCont) = AsyncStream.makeStream(of: [Float].self)
+        self.systemSampleBridgeContinuation = systemBridgeCont
+
+        let handler = SystemAudioOutputHandler { samples in
+            systemBridgeCont.yield(samples)
         }
         self.systemStreamOutput = handler
 
         let stream = SCStream(filter: filter, configuration: config, delegate: nil)
-        try stream.addStreamOutput(handler, type: .audio, sampleHandlerQueue: DispatchQueue(label: "wispr.meeting.systemAudio"))
+        try stream.addStreamOutput(
+            handler, type: .audio,
+            sampleHandlerQueue: DispatchQueue(label: "wispr.meeting.systemAudio"))
         try await stream.startCapture()
         self.systemStream = stream
+
+        systemConsumerTask = Task {
+            for await samples in systemBridgeStream {
+                self.processSystemSamples(samples)
+            }
+        }
 
         Log.audioEngine.debug("MeetingAudioEngine — system audio capture started")
         return levelStream
@@ -297,12 +337,17 @@ actor MeetingAudioEngine {
         if systemBuffer.count >= chunkSize {
             let chunk = Array(systemBuffer.prefix(chunkSize))
             systemBuffer.removeFirst(min(chunkSize, systemBuffer.count))
-            Log.audioEngine.debug("MeetingAudioEngine — yielding system chunk of \(chunk.count) samples")
+            Log.audioEngine.debug(
+                "MeetingAudioEngine — yielding system chunk of \(chunk.count) samples")
             systemContinuation?.yield(chunk)
         }
     }
 
     private func teardownSystemAudio() {
+        systemConsumerTask?.cancel()
+        systemConsumerTask = nil
+        systemSampleBridgeContinuation?.finish()
+        systemSampleBridgeContinuation = nil
         systemStream = nil
         systemStreamOutput = nil
         systemBuffer.removeAll()
@@ -323,7 +368,7 @@ actor MeetingAudioEngine {
 // MARK: - ScreenCaptureKit Audio Output Handler
 
 /// Receives audio sample buffers from SCStream and converts them to Float32 arrays.
-final class SystemAudioOutputHandler: NSObject, SCStreamOutput, @unchecked Sendable {
+final class SystemAudioOutputHandler: NSObject, SCStreamOutput, Sendable {
 
     private let onSamples: @Sendable ([Float]) -> Void
 
@@ -331,7 +376,10 @@ final class SystemAudioOutputHandler: NSObject, SCStreamOutput, @unchecked Senda
         self.onSamples = onSamples
     }
 
-    nonisolated func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
+    nonisolated func stream(
+        _ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer,
+        of type: SCStreamOutputType
+    ) {
         guard type == .audio else { return }
         guard sampleBuffer.isValid, sampleBuffer.numSamples > 0 else { return }
 
@@ -339,17 +387,20 @@ final class SystemAudioOutputHandler: NSObject, SCStreamOutput, @unchecked Senda
 
         var length = 0
         var dataPointer: UnsafeMutablePointer<Int8>?
-        let status = CMBlockBufferGetDataPointer(blockBuffer, atOffset: 0, lengthAtOffsetOut: nil, totalLengthOut: &length, dataPointerOut: &dataPointer)
+        let status = CMBlockBufferGetDataPointer(
+            blockBuffer, atOffset: 0, lengthAtOffsetOut: nil, totalLengthOut: &length,
+            dataPointerOut: &dataPointer)
 
         guard status == noErr, let data = dataPointer, length > 0 else { return }
 
         let floatCount = length / MemoryLayout<Float>.size
         guard floatCount > 0 else { return }
 
-        let samples = Array(UnsafeBufferPointer(
-            start: data.withMemoryRebound(to: Float.self, capacity: floatCount) { $0 },
-            count: floatCount
-        ))
+        let samples = Array(
+            UnsafeBufferPointer(
+                start: data.withMemoryRebound(to: Float.self, capacity: floatCount) { $0 },
+                count: floatCount
+            ))
 
         onSamples(samples)
     }

@@ -6,9 +6,9 @@
 //  Manages audio capture, continuous transcription, and transcript assembly.
 //
 
+import AppKit
 import Foundation
 import Observation
-import AppKit
 import UniformTypeIdentifiers
 import os
 
@@ -65,11 +65,7 @@ final class MeetingStateManager {
 
     // MARK: - Tasks
 
-    private var micTranscriptionTask: Task<Void, Never>?
-    private var systemTranscriptionTask: Task<Void, Never>?
-    private var micLevelTask: Task<Void, Never>?
-    private var systemLevelTask: Task<Void, Never>?
-    private var timerTask: Task<Void, Never>?
+    private var recordingTask: Task<Void, Never>?
 
     // MARK: - Initialization
 
@@ -100,19 +96,19 @@ final class MeetingStateManager {
             meetingState = .recording
             isWindowVisible = true
 
-            // Start consuming audio levels for UI
-            startMicLevelConsumption(micLevels)
-            startSystemLevelConsumption(systemLevels)
-
-            // Start parallel transcription on both audio streams
-            startMicTranscription()
-            startSystemTranscription()
-
-            // Start elapsed time timer
-            startTimer()
+            recordingTask = Task {
+                await withTaskGroup(of: Void.self) { group in
+                    group.addTask { await self.consumeMicLevels(micLevels) }
+                    group.addTask { await self.consumeSystemLevels(systemLevels) }
+                    group.addTask { await self.transcribeMicAudio() }
+                    group.addTask { await self.transcribeSystemAudio() }
+                    group.addTask { await self.runTimer() }
+                }
+            }
 
         } catch {
-            Log.stateManager.error("MeetingStateManager — failed to start: \(error.localizedDescription)")
+            Log.stateManager.error(
+                "MeetingStateManager — failed to start: \(error.localizedDescription)")
             await handleError("Failed to start meeting capture: \(error.localizedDescription)")
         }
     }
@@ -123,24 +119,11 @@ final class MeetingStateManager {
 
         Log.stateManager.debug("MeetingStateManager — stopping meeting")
 
-        // Flush remaining audio buffers before stopping
         await meetingAudioEngine.flushBuffers()
-
-        // Give transcription task a moment to process final chunks
         try? await Task.sleep(for: .milliseconds(500))
 
-        // Cancel all tasks
-        micTranscriptionTask?.cancel()
-        systemTranscriptionTask?.cancel()
-        micLevelTask?.cancel()
-        systemLevelTask?.cancel()
-        timerTask?.cancel()
-
-        micTranscriptionTask = nil
-        systemTranscriptionTask = nil
-        micLevelTask = nil
-        systemLevelTask = nil
-        timerTask = nil
+        recordingTask?.cancel()
+        recordingTask = nil
 
         await meetingAudioEngine.stopCapture()
 
@@ -186,105 +169,96 @@ final class MeetingStateManager {
                 try text.write(to: url, atomically: true, encoding: .utf8)
                 Log.stateManager.debug("MeetingStateManager — transcript exported to \(url.path)")
             } catch {
-                Log.stateManager.error("MeetingStateManager — export failed: \(error.localizedDescription)")
+                Log.stateManager.error(
+                    "MeetingStateManager — export failed: \(error.localizedDescription)")
             }
         }
     }
 
     // MARK: - Transcription
 
-    private func startMicTranscription() {
-        micTranscriptionTask = Task { [weak self] in
-            guard let self else { return }
-            let audioStream = await self.meetingAudioEngine.micAudioStream
-            let language = self.settingsStore.languageMode
+    private func transcribeMicAudio() async {
+        let audioStream = await meetingAudioEngine.micAudioStream
+        let language = settingsStore.languageMode
 
-            for await chunk in audioStream {
-                guard !Task.isCancelled else { break }
-                guard chunk.count >= 8000 else { continue }
+        for await chunk in audioStream {
+            guard !Task.isCancelled else { break }
+            guard chunk.count >= 8000 else { continue }
 
-                do {
-                    let result = try await self.transcriptionEngine.transcribe(chunk, language: language)
-                    let text = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !text.isEmpty else { continue }
+            do {
+                let result = try await transcriptionEngine.transcribe(chunk, language: language)
+                let text = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !text.isEmpty else { continue }
 
-                    await MainActor.run {
-                        self.transcript.entries.append(
-                            MeetingTranscriptEntry(speaker: .you, text: text)
-                        )
-                    }
-                } catch {
-                    if case WisprError.emptyTranscription = error { continue }
-                    Log.stateManager.warning("MeetingStateManager — mic transcription error: \(error.localizedDescription)")
-                }
+                transcript.entries.append(
+                    MeetingTranscriptEntry(speaker: .you, text: text)
+                )
+            } catch {
+                if case WisprError.emptyTranscription = error { continue }
+                Log.stateManager.warning(
+                    "MeetingStateManager — mic transcription error: \(error.localizedDescription)")
             }
         }
     }
 
-    private func startSystemTranscription() {
-        systemTranscriptionTask = Task { [weak self] in
-            guard let self else { return }
-            let audioStream = await self.meetingAudioEngine.systemAudioStream
-            let language = self.settingsStore.languageMode
+    private func transcribeSystemAudio() async {
+        let audioStream = await meetingAudioEngine.systemAudioStream
+        let language = settingsStore.languageMode
 
-            for await chunk in audioStream {
-                guard !Task.isCancelled else { break }
-                guard chunk.count >= 8000 else { continue }
+        for await chunk in audioStream {
+            guard !Task.isCancelled else { break }
+            guard chunk.count >= 8000 else { continue }
 
-                do {
-                    let result = try await self.transcriptionEngine.transcribe(chunk, language: language)
-                    let text = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !text.isEmpty else { continue }
+            do {
+                let result = try await transcriptionEngine.transcribe(chunk, language: language)
+                let text = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !text.isEmpty else { continue }
 
-                    await MainActor.run {
-                        self.transcript.entries.append(
-                            MeetingTranscriptEntry(speaker: .others, text: text)
-                        )
-                    }
-                } catch {
-                    if case WisprError.emptyTranscription = error { continue }
-                    Log.stateManager.warning("MeetingStateManager — system transcription error: \(error.localizedDescription)")
-                }
+                transcript.entries.append(
+                    MeetingTranscriptEntry(speaker: .others, text: text)
+                )
+            } catch {
+                if case WisprError.emptyTranscription = error { continue }
+                Log.stateManager.warning(
+                    "MeetingStateManager — system transcription error: \(error.localizedDescription)"
+                )
             }
         }
     }
 
     // MARK: - Audio Level Consumption
 
-    private func startMicLevelConsumption(_ stream: AsyncStream<Float>) {
-        micLevelTask = Task { [weak self] in
-            for await level in stream {
-                guard !Task.isCancelled else { break }
-                await MainActor.run {
-                    self?.micLevel = level
-                }
-            }
+    private func consumeMicLevels(_ stream: AsyncStream<Float>) async {
+        for await level in stream {
+            guard !Task.isCancelled else { break }
+            self.micLevel = level
         }
     }
 
-    private func startSystemLevelConsumption(_ stream: AsyncStream<Float>) {
-        systemLevelTask = Task { [weak self] in
-            for await level in stream {
-                guard !Task.isCancelled else { break }
-                await MainActor.run {
-                    self?.systemLevel = level
-                }
-            }
+    private func consumeSystemLevels(_ stream: AsyncStream<Float>) async {
+        for await level in stream {
+            guard !Task.isCancelled else { break }
+            self.systemLevel = level
         }
     }
 
     // MARK: - Timer
 
-    private func startTimer() {
-        timerTask = Task { [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(1))
-                guard !Task.isCancelled else { break }
-                await MainActor.run {
-                    self?.elapsedTime = self?.transcript.formattedDuration ?? "0:00"
-                }
-            }
+    private func runTimer() async {
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled else { break }
+            self.elapsedTime = self.transcript.formattedDuration ?? "0:00"
         }
+    }
+
+    // MARK: - Cancellation
+
+    /// Cancels all recording tasks immediately. Safe to call synchronously
+    /// (e.g. from applicationWillTerminate).
+    func cancelRecording() {
+        recordingTask?.cancel()
+        recordingTask = nil
     }
 
     // MARK: - Error Handling
