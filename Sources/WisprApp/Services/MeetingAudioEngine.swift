@@ -183,8 +183,8 @@ actor MeetingAudioEngine {
         nonisolated(unsafe) var sampleRateRatio: Double = 0
 
         let bridgeContinuation = micBridgeCont
-        inputNode.installTap(onBus: 0, bufferSize: 4096, format: nil) { [weak self] buffer, _ in
-            guard self != nil, buffer.frameLength > 0 else { return }
+        inputNode.installTap(onBus: 0, bufferSize: 4096, format: nil) { buffer, _ in
+            guard buffer.frameLength > 0 else { return }
 
             if converter == nil {
                 let bufferFormat = buffer.format
@@ -205,6 +205,7 @@ actor MeetingAudioEngine {
                 )
             else { return }
 
+            // Safety: inputBuffer is only read synchronously within the converter's input block callback.
             nonisolated(unsafe) let inputBuffer = buffer
             var conversionError: NSError?
             let status = tapConverter.convert(to: outputBuffer, error: &conversionError) {
@@ -397,11 +398,9 @@ final class SystemAudioOutputHandler: NSObject, SCStreamOutput, Sendable {
         let floatCount = length / MemoryLayout<Float>.size
         guard floatCount > 0 else { return }
 
-        let samples = Array(
-            UnsafeBufferPointer(
-                start: data.withMemoryRebound(to: Float.self, capacity: floatCount) { $0 },
-                count: floatCount
-            ))
+        let samples = data.withMemoryRebound(to: Float.self, capacity: floatCount) { ptr in
+            Array(UnsafeBufferPointer(start: ptr, count: floatCount))
+        }
 
         onSamples(samples)
     }

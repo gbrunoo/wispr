@@ -7,6 +7,9 @@
 //
 
 import SwiftUI
+import UniformTypeIdentifiers
+import WisprCore
+import os
 
 /// The main content view for the meeting transcription window.
 ///
@@ -16,7 +19,7 @@ struct MeetingTranscriptView: View {
     @Environment(MeetingStateManager.self) private var meetingState: MeetingStateManager
     @Environment(UIThemeEngine.self) private var theme: UIThemeEngine
 
-    @State private var scrollProxy: ScrollViewProxy?
+    @State private var isExporting = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -38,6 +41,16 @@ struct MeetingTranscriptView: View {
             footerBar
         }
         .frame(minWidth: 360, minHeight: 400)
+        .fileExporter(
+            isPresented: $isExporting,
+            document: TranscriptDocument(text: meetingState.transcript.asPlainText()),
+            contentType: .plainText,
+            defaultFilename: "meeting-transcript"
+        ) { result in
+            if case .failure(let error) = result {
+                Log.stateManager.error("Export failed: \(error.localizedDescription)")
+            }
+        }
     }
 
     // MARK: - Header
@@ -49,10 +62,12 @@ struct MeetingTranscriptView: View {
                 Task { await meetingState.toggleMeeting() }
             } label: {
                 HStack(spacing: 6) {
-                    Image(systemName: meetingState.meetingState == .recording
-                          ? SFSymbols.stopFill
-                          : SFSymbols.recordingMicrophone)
-                        .font(.body)
+                    Image(
+                        systemName: meetingState.meetingState == .recording
+                            ? SFSymbols.stopFill
+                            : SFSymbols.recordingMicrophone
+                    )
+                    .font(.body)
 
                     Text(meetingState.meetingState == .recording ? "Stop" : "Start Meeting")
                         .font(.callout.weight(.medium))
@@ -74,7 +89,8 @@ struct MeetingTranscriptView: View {
             if meetingState.meetingState == .recording {
                 HStack(spacing: 8) {
                     audioLevelIndicator(label: "You", level: meetingState.micLevel, color: .blue)
-                    audioLevelIndicator(label: "Others", level: meetingState.systemLevel, color: .green)
+                    audioLevelIndicator(
+                        label: "Others", level: meetingState.systemLevel, color: .green)
                 }
 
                 // Timer
@@ -105,7 +121,7 @@ struct MeetingTranscriptView: View {
         VStack(spacing: 12) {
             Spacer()
 
-            Image(systemName: SFSymbols.waveform)
+            Image(systemName: SFSymbols.menuBarProcessing)
                 .font(.system(size: 40))
                 .foregroundStyle(.tertiary)
 
@@ -123,10 +139,12 @@ struct MeetingTranscriptView: View {
                     .font(.title3)
                     .foregroundStyle(.secondary)
 
-                Text("Press Start to capture your microphone and system audio.\nSpeakers are separated automatically.")
-                    .font(.callout)
-                    .foregroundStyle(.tertiary)
-                    .multilineTextAlignment(.center)
+                Text(
+                    "Press Start to capture your microphone and system audio.\nSpeakers are separated automatically."
+                )
+                .font(.callout)
+                .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
             }
 
             Spacer()
@@ -185,9 +203,7 @@ struct MeetingTranscriptView: View {
     }
 
     private func formatTime(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm:ss"
-        return formatter.string(from: date)
+        MeetingTranscript.formatTime(date)
     }
 
     // MARK: - Footer
@@ -205,7 +221,7 @@ struct MeetingTranscriptView: View {
             Button {
                 meetingState.copyTranscript()
             } label: {
-                Label("Copy", systemImage: SFSymbols.clipboard)
+                Label("Copy", systemImage: SFSymbols.copy)
                     .font(.callout)
             }
             .buttonStyle(.plain)
@@ -213,7 +229,7 @@ struct MeetingTranscriptView: View {
 
             // Export button
             Button {
-                meetingState.exportTranscript()
+                isExporting = true
             } label: {
                 Label("Export", systemImage: SFSymbols.download)
                     .font(.callout)
@@ -224,12 +240,4 @@ struct MeetingTranscriptView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
     }
-}
-
-// MARK: - SF Symbols Extensions
-
-private extension SFSymbols {
-    static let stopFill = "stop.fill"
-    static let waveform = "waveform"
-    static let clipboard = "doc.on.doc"
 }

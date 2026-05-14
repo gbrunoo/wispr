@@ -9,7 +9,6 @@
 import AppKit
 import Foundation
 import Observation
-import UniformTypeIdentifiers
 import WisprCore
 import os
 
@@ -155,27 +154,6 @@ final class MeetingStateManager {
         pasteboard.setString(text, forType: .string)
     }
 
-    /// Saves the transcript to a text file via save panel.
-    func exportTranscript() {
-        let text = transcript.asPlainText()
-        guard !text.isEmpty else { return }
-
-        let panel = NSSavePanel()
-        panel.allowedContentTypes = [.plainText]
-        panel.nameFieldStringValue = "meeting-transcript-\(formattedDate()).txt"
-        panel.canCreateDirectories = true
-
-        if panel.runModal() == .OK, let url = panel.url {
-            do {
-                try text.write(to: url, atomically: true, encoding: .utf8)
-                Log.stateManager.debug("MeetingStateManager — transcript exported to \(url.path)")
-            } catch {
-                Log.stateManager.error(
-                    "MeetingStateManager — export failed: \(error.localizedDescription)")
-            }
-        }
-    }
-
     // MARK: - Transcription
 
     private func transcribeMicAudio() async {
@@ -249,7 +227,7 @@ final class MeetingStateManager {
         while !Task.isCancelled {
             try? await Task.sleep(for: .seconds(1))
             guard !Task.isCancelled else { break }
-            self.elapsedTime = self.transcript.formattedDuration ?? "0:00"
+            self.elapsedTime = self.transcript.formattedDuration
         }
     }
 
@@ -276,11 +254,4 @@ final class MeetingStateManager {
         }
     }
 
-    // MARK: - Helpers
-
-    private func formattedDate() -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd-HHmmss"
-        return formatter.string(from: Date())
-    }
 }

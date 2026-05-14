@@ -55,6 +55,9 @@ enum SFSymbols {
     /// Delete / trash icon.
     static let delete = "trash"
 
+    /// Stop button icon for meeting transcription.
+    static let stopFill = "stop.fill"
+
     /// Checkmark (filled circle) for success / active states.
     static let checkmark = "checkmark.circle.fill"
 

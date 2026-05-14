@@ -85,6 +85,7 @@
 		EAABFC5DC0A565D10326809B /* MeetingTranscript.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6CE95739BEEBDC90BA22323 /* MeetingTranscript.swift */; };
 		5871C9411CAF50B12419F9DA /* MeetingTranscriptView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F66665AA7D70423B4954925F /* MeetingTranscriptView.swift */; };
 		24D1D37198DFC731F192C278 /* MeetingWindowPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 654DB8601B81B3E819BC5A5C /* MeetingWindowPanel.swift */; };
+		AEAC6284FE7B470A7CB12A52 /* TranscriptDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 422A849C5A34DC9AE1B8437C /* TranscriptDocument.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -209,6 +210,7 @@
 		F6CE95739BEEBDC90BA22323 /* MeetingTranscript.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingTranscript.swift; sourceTree = "<group>"; };
 		F66665AA7D70423B4954925F /* MeetingTranscriptView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingTranscriptView.swift; sourceTree = "<group>"; };
 		654DB8601B81B3E819BC5A5C /* MeetingWindowPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingWindowPanel.swift; sourceTree = "<group>"; };
+		422A849C5A34DC9AE1B8437C /* TranscriptDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptDocument.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -369,6 +371,7 @@
 				1C74D2CC2FA632B700208826 /* PermissionStatus.swift */,
 				1C74D2CD2FA632B700208826 /* SemanticVersion.swift */,
 				F6CE95739BEEBDC90BA22323 /* MeetingTranscript.swift */,
+				422A849C5A34DC9AE1B8437C /* TranscriptDocument.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -744,6 +747,7 @@
 				E4782D9F9369B23177982DC0 /* MeetingAudioEngine.swift in Sources */,
 				0AF8E6B5B2AC76E3983230BF /* MeetingStateManager.swift in Sources */,
 				EAABFC5DC0A565D10326809B /* MeetingTranscript.swift in Sources */,
+				AEAC6284FE7B470A7CB12A52 /* TranscriptDocument.swift in Sources */,
 				5871C9411CAF50B12419F9DA /* MeetingTranscriptView.swift in Sources */,
 				24D1D37198DFC731F192C278 /* MeetingWindowPanel.swift in Sources */,
 				1C74D3472FA632B700208826 /* OnboardingWelcomeStep.swift in Sources */,

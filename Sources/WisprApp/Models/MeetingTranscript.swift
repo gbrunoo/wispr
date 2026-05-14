@@ -37,13 +37,22 @@ struct MeetingTranscript: Sendable, Equatable {
         self.startTime = startTime
     }
 
-    /// Formats the entire transcript as plain text for export.
-    func asPlainText() -> String {
+    /// Shared time formatter for transcript display (HH:mm:ss).
+    private static let timeFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm:ss"
+        return formatter
+    }()
 
-        return entries.map { entry in
-            let time = formatter.string(from: entry.timestamp)
+    /// Formats a date as HH:mm:ss for transcript display.
+    static func formatTime(_ date: Date) -> String {
+        timeFormatter.string(from: date)
+    }
+
+    /// Formats the entire transcript as plain text for export.
+    func asPlainText() -> String {
+        entries.map { entry in
+            let time = Self.formatTime(entry.timestamp)
             return "[\(time)] \(entry.speaker.rawValue): \(entry.text)"
         }.joined(separator: "\n")
     }
