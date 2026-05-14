@@ -11,8 +11,9 @@ import CoreMedia
 import Foundation
 import ScreenCaptureKit
 import Testing
+import WisprCore
 
-@testable import wispr
+@testable import WisprApp
 
 // MARK: - MeetingAudioEngine Tests
 

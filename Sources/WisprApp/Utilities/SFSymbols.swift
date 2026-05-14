@@ -1,0 +1,155 @@
+//
+//  SFSymbols.swift
+//  wispr
+//
+//  Centralized SF Symbol name constants used throughout the Wispr application.
+//  Ensures visual consistency (Requirement 14.1) and makes symbol names easy
+//  to update in one place.
+//
+//  Requirements: 14.1, 14.2
+//
+
+import Foundation
+
+/// Centralized SF Symbol name constants for the Wispr application.
+///
+/// All SF Symbol names used in the app are defined here so they remain
+/// consistent across views and are easy to audit or update.
+///
+/// Requirement 14.1: Use SF Symbols for all iconography throughout the app.
+enum SFSymbols {
+
+    // MARK: - Menu Bar States (Requirement 14.2)
+
+    /// Menu bar icon for idle state.
+    static let menuBarIdle = "microphone"
+
+    /// Menu bar icon for recording state.
+    static let menuBarRecording = "microphone.fill"
+
+    /// Menu bar icon for processing state.
+    static let menuBarProcessing = "waveform"
+
+    /// Menu bar icon for error state.
+    static let menuBarError = "exclamationmark.triangle"
+
+    // MARK: - Recording Overlay
+
+    /// Microphone icon shown during active recording.
+    static let recordingMicrophone = "microphone.fill"
+
+    /// Warning icon shown in error state overlay.
+    static let overlayError = "exclamationmark.triangle.fill"
+
+    // MARK: - Actions
+
+    /// Settings / gear icon.
+    static let settings = "gear"
+
+    /// Quit / power icon.
+    static let quit = "power"
+
+    /// Download icon.
+    static let download = "arrow.down.circle"
+
+    /// Delete / trash icon.
+    static let delete = "trash"
+
+    /// Checkmark (filled circle) for success / active states.
+    static let checkmark = "checkmark.circle.fill"
+
+    /// Checkmark (unfilled circle) for completed / downloaded states.
+    static let checkmarkCircle = "checkmark.circle"
+
+    /// Warning (filled triangle) for error labels.
+    static let warning = "exclamationmark.triangle.fill"
+
+    /// Info (filled circle) for informational labels.
+    static let info = "info.circle.fill"
+
+    /// Microphone icon for general use.
+    static let microphone = "microphone"
+
+    /// Globe icon for language selection.
+    static let language = "globe"
+
+    /// CPU icon for model management.
+    static let model = "cpu"
+
+    /// Privacy / lock shield icon.
+    static let privacy = "lock.shield"
+
+    /// Accessibility icon.
+    static let accessibility = "accessibility"
+
+    /// Launch at login icon.
+    static let launchAtLogin = "arrow.right.circle"
+
+    // MARK: - Onboarding
+
+    /// Welcome step icon.
+    static let onboardingWelcome = "mic.badge.plus"
+
+    /// Completion step icon.
+    static let onboardingComplete = "checkmark.seal.fill"
+
+    /// Test dictation step icon.
+    static let onboardingTestDictation = "waveform"
+
+    /// Back navigation chevron.
+    static let chevronLeft = "chevron.left"
+
+    /// Retry / refresh icon.
+    static let retry = "arrow.clockwise"
+
+    // MARK: - Settings View
+
+    /// Keyboard icon for hotkey section.
+    static let keyboard = "keyboard"
+
+    /// Character bubble icon for language picker.
+    static let characterBubble = "character.bubble"
+
+    /// Pin icon for pinned language.
+    static let pin = "pin"
+
+    /// Recording indicator for hotkey recorder.
+    static let recordCircle = "record.circle"
+
+    /// Text output icon for after-transcription section.
+    static let textOutput = "text.badge.checkmark"
+
+    /// Bell icon for feedback section.
+    static let feedback = "bell"
+
+    /// Chevron up/down icon for menu disclosure.
+    static let chevronUpDown = "chevron.up.chevron.down"
+
+    /// Terminal icon for CLI install menu item.
+    static let terminal = "terminal"
+
+    /// Copy / duplicate icon for clipboard actions.
+    static let copy = "doc.on.doc"
+
+    // MARK: - Model Status Icons
+
+    /// Plain checkmark for active/completion states.
+    static let checkmarkPlain = "checkmark"
+
+    /// Arrow down for downloaded model indicator.
+    static let arrowDown = "arrow.down"
+
+    /// Cloud download for not-yet-downloaded models.
+    static let cloudDownload = "icloud.and.arrow.down"
+
+    /// X-mark circle for denied/error states.
+    static let denied = "xmark.circle"
+
+    // MARK: - Provider Icons
+
+    /// Icon representing the OpenAI Whisper provider.
+    static let providerWhisper = "waveform"
+
+    /// Icon representing the NVIDIA Parakeet provider.
+    static let providerParakeet = "bird"
+}

@@ -11,7 +11,8 @@
 import Testing
 import SwiftUI
 import AppKit
-@testable import wispr
+@testable import WisprApp
+import WisprCore
 
 // MARK: - Accessibility Label Generation Tests (Requirement 17.1)
 

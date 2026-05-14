@@ -8,8 +8,9 @@
 import AppKit
 import Foundation
 import Testing
+import WisprCore
 
-@testable import wispr
+@testable import WisprApp
 
 // MARK: - Test Helpers
 
