@@ -7,7 +7,8 @@
 
 import Testing
 import SwiftUI
-@testable import wispr
+@testable import WisprApp
+import WisprCore
 
 @MainActor
 @Suite("UIThemeEngine Tests")

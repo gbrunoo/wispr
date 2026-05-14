@@ -10,7 +10,8 @@
 import Testing
 import Foundation
 import Carbon
-@testable import wispr
+@testable import WisprApp
+import WisprCore
 
 // MARK: - Language Mode Transition Tests
 

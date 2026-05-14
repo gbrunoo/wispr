@@ -10,7 +10,8 @@
 
 import Testing
 import Foundation
-@testable import wispr
+@testable import WisprApp
+import WisprCore
 
 // MARK: - Integration Test Helpers
 

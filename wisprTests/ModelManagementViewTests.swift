@@ -10,7 +10,8 @@
 
 import Testing
 import Foundation
-@testable import wispr
+@testable import WisprApp
+import WisprCore
 
 // MARK: - ModelInfo Data Model Tests
 

@@ -10,7 +10,8 @@
 import Testing
 import Foundation
 import AppKit
-@testable import wispr
+@testable import WisprApp
+import WisprCore
 
 // MARK: - Mock
 

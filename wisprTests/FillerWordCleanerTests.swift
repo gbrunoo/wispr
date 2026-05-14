@@ -7,7 +7,8 @@
 
 import Testing
 import Foundation
-@testable import wispr
+@testable import WisprApp
+import WisprCore
 
 @Suite("FillerWordCleaner Tests")
 struct FillerWordCleanerTests {

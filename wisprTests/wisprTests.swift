@@ -7,6 +7,7 @@
 
 import Testing
 import Foundation
-@testable import wispr
+@testable import WisprApp
+import WisprCore
 
 nonisolated let isLocalTestEnvironment = ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] == nil

@@ -8,7 +8,8 @@
 
 import Testing
 import Foundation
-@testable import wispr
+@testable import WisprApp
+import WisprCore
 
 // MARK: - Mock for download tests (no network)
 
